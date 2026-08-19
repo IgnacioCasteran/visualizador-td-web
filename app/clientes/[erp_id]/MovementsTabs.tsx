@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import NavigationLoadingLink from "@/components/NavigationLoadingLink";
 
 type Movement = {
   erp_id: number;
@@ -285,14 +285,14 @@ export default function MovementsTabs({
 
                       <td className="whitespace-nowrap px-5 py-4">
                         {documentHref ? (
-                          <Link
+                          <NavigationLoadingLink
                             href={documentHref}
-                            className="group inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 shadow-sm transition hover:border-red-700 hover:bg-red-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-200"
-                            title={
+                            loadingText={
                               isReceipt
-                                ? "Ver detalle del recibo"
-                                : "Ver detalle del comprobante"
+                                ? "Abriendo recibo..."
+                                : "Abriendo comprobante..."
                             }
+                            className="group inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 shadow-sm transition hover:border-red-700 hover:bg-red-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-200"
                           >
                             <span>{documentNumber}</span>
 
@@ -302,7 +302,7 @@ export default function MovementsTabs({
                             >
                               →
                             </span>
-                          </Link>
+                          </NavigationLoadingLink>
                         ) : (
                           <span className="font-semibold text-gray-900">
                             {documentNumber}
@@ -413,8 +413,13 @@ export default function MovementsTabs({
                             {documentNumber}
                           </p>
 
-                          <Link
+                          <NavigationLoadingLink
                             href={documentHref}
+                            loadingText={
+                              isReceipt
+                                ? "Abriendo recibo..."
+                                : "Abriendo comprobante..."
+                            }
                             className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-200"
                           >
                             {isReceipt
@@ -426,7 +431,7 @@ export default function MovementsTabs({
                             >
                               →
                             </span>
-                          </Link>
+                          </NavigationLoadingLink>
                         </div>
                       ) : (
                         <p className="mt-1 break-all font-bold text-gray-900">
