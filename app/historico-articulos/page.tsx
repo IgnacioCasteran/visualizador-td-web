@@ -968,7 +968,7 @@ function ArticleHistoryContent() {
     }
 
     return (
-        <main className="min-h-screen bg-slate-50">
+        <main className="min-h-screen bg-slate-50 text-gray-900">
             <div className="h-1.5 w-full bg-red-700" />
 
             <header className="border-b bg-white shadow-sm">
@@ -1276,8 +1276,8 @@ function ArticleHistoryContent() {
                             </div>
                         </div>
 
-                        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto_auto]">
-                            <div>
+                        <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
+                            <div className="min-w-0">
                                 <label
                                     htmlFor="from-date"
                                     className="mb-2 block text-sm font-medium text-gray-700"
@@ -1294,11 +1294,11 @@ function ArticleHistoryContent() {
                                             event.target.value
                                         )
                                     }
-                                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+                                    className="block w-full min-w-0 max-w-full appearance-none rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
                                 />
                             </div>
 
-                            <div>
+                            <div className="min-w-0">
                                 <label
                                     htmlFor="to-date"
                                     className="mb-2 block text-sm font-medium text-gray-700"
@@ -1315,7 +1315,7 @@ function ArticleHistoryContent() {
                                             event.target.value
                                         )
                                     }
-                                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+                                    className="block w-full min-w-0 max-w-full appearance-none rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
                                 />
                             </div>
 
@@ -1796,7 +1796,7 @@ export default function ArticleHistoryPage() {
     return (
         <Suspense
             fallback={
-                <main className="min-h-screen bg-slate-50">
+                <main className="min-h-screen bg-slate-50 text-gray-900">
                     <div className="h-1.5 w-full bg-red-700" />
 
                     <div className="mx-auto flex min-h-[70vh] max-w-7xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">

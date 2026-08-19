@@ -350,7 +350,7 @@ export default async function InvoicePage({
 
   if (invoiceError || !invoice) {
     return (
-      <main className="min-h-screen bg-slate-50">
+      <main className="min-h-screen bg-slate-50 text-gray-900">
         <div className="h-1.5 bg-red-700" />
 
         <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
@@ -388,7 +388,7 @@ export default async function InvoicePage({
     caeValue !== "0";
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-slate-50 text-gray-900">
       {/* BARRA ROJA */}
 
       <div className="h-1.5 w-full bg-red-700" />
@@ -793,7 +793,7 @@ export default async function InvoicePage({
                             Cantidad
                           </p>
 
-                          <p className="mt-1 font-bold">
+                          <p className="mt-1 font-bold text-gray-900">
                             {formatQuantity(
                               item.quantity
                             )}
@@ -812,7 +812,7 @@ export default async function InvoicePage({
                             Precio unitario
                           </p>
 
-                          <p className="mt-1 text-sm font-bold">
+                          <p className="mt-1 text-sm font-bold text-gray-900">
                             {formatMoney(
                               item.unit_price
                             )}
@@ -824,7 +824,7 @@ export default async function InvoicePage({
                             Descuento
                           </p>
 
-                          <p className="mt-1 text-sm font-bold">
+                          <p className="mt-1 text-sm font-bold text-gray-900">
                             {formatPercentage(
                               item.discount_percentage
                             )}
@@ -836,7 +836,7 @@ export default async function InvoicePage({
                             IVA
                           </p>
 
-                          <p className="mt-1 text-sm font-bold">
+                          <p className="mt-1 text-sm font-bold text-gray-900">
                             {formatPercentage(
                               item.iva_percentage
                             )}
@@ -848,7 +848,7 @@ export default async function InvoicePage({
                             Subtotal
                           </p>
 
-                          <p className="mt-1 text-sm font-bold">
+                          <p className="mt-1 text-sm font-bold text-gray-900">
                             {formatMoney(
                               calculateLineSubtotal(
                                 item
@@ -907,7 +907,7 @@ export default async function InvoicePage({
                   Neto
                 </span>
 
-                <span className="font-semibold">
+                <span className="font-semibold text-gray-900">
                   {formatMoney(
                     invoice.net_amount
                   )}
@@ -919,7 +919,7 @@ export default async function InvoicePage({
                   IVA 21%
                 </span>
 
-                <span className="font-semibold">
+                <span className="font-semibold text-gray-900">
                   {formatMoney(
                     invoice.taxed_amount_21
                   )}

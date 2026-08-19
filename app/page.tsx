@@ -368,7 +368,7 @@ export default function Home() {
    */
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-slate-50 text-gray-900">
       {/* BARRA ROJA */}
 
       <div className="h-1.5 w-full bg-red-700" />
@@ -845,7 +845,7 @@ export default function Home() {
                             Código
                           </p>
 
-                          <p className="mt-1 font-bold">
+                          <p className="mt-1 font-bold text-gray-900">
                             {formatCustomerCode(
                               customer.erp_id
                             )}
@@ -857,7 +857,7 @@ export default function Home() {
                             Último movimiento
                           </p>
 
-                          <p className="mt-1 font-medium">
+                          <p className="mt-1 font-medium text-gray-900">
                             {formatDate(
                               customer.real_last_movement_at
                             )}
@@ -869,7 +869,7 @@ export default function Home() {
                             Localidad
                           </p>
 
-                          <p className="mt-1 font-medium">
+                          <p className="mt-1 font-medium text-gray-900">
                             {customer.locality_name ||
                               "-"}
                           </p>
@@ -880,7 +880,7 @@ export default function Home() {
                             CUIT
                           </p>
 
-                          <p className="mt-1 font-medium">
+                          <p className="mt-1 font-medium text-gray-900">
                             {customer.cuit ||
                               "-"}
                           </p>
