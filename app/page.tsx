@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import NavigationLoadingLink from "@/components/NavigationLoadingLink";
 
 type Customer = {
   erp_id: number;
@@ -407,12 +407,13 @@ export default function Home() {
           </div>
 
           <div className="hidden items-center gap-3 md:flex">
-            <Link
+            <NavigationLoadingLink
               href="/historico-articulos"
+              loadingText="Abriendo histórico..."
               className="inline-flex items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 shadow-sm transition hover:border-red-700 hover:bg-red-700 hover:text-white"
             >
               Histórico de artículos
-            </Link>
+            </NavigationLoadingLink>
 
             {/* =================================================
                 ÚLTIMA SINCRONIZACIÓN
@@ -477,15 +478,16 @@ export default function Home() {
         </div>
 
         <div className="mb-6 md:hidden">
-          <Link
+          <NavigationLoadingLink
             href="/historico-articulos"
+            loadingText="Abriendo histórico..."
             className="flex w-full items-center justify-between rounded-2xl border border-red-200 bg-red-50 px-5 py-4 font-bold text-red-700 shadow-sm transition active:bg-red-100"
           >
             <span>Histórico de artículos</span>
             <span aria-hidden="true" className="text-lg">
               →
             </span>
-          </Link>
+          </NavigationLoadingLink>
         </div>
 
         {/* ===================================================
@@ -769,12 +771,13 @@ export default function Home() {
                             {/* VER */}
 
                             <td className="px-5 py-4 text-right">
-                              <Link
+                              <NavigationLoadingLink
                                 href={`/clientes/${customer.erp_id}`}
+                                loadingText="Abriendo cliente..."
                                 className="inline-flex rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-800"
                               >
                                 Ver
-                              </Link>
+                              </NavigationLoadingLink>
                             </td>
                           </tr>
                         )
@@ -890,12 +893,13 @@ export default function Home() {
                       {/* BOTÓN */}
 
                       <div className="border-t border-gray-100 bg-gray-50 p-4">
-                        <Link
+                        <NavigationLoadingLink
                           href={`/clientes/${customer.erp_id}`}
+                          loadingText="Abriendo cliente..."
                           className="flex w-full items-center justify-center rounded-xl bg-red-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-800"
                         >
                           Ver cliente
-                        </Link>
+                        </NavigationLoadingLink>
                       </div>
                     </article>
                   )

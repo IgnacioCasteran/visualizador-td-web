@@ -8,9 +8,10 @@ import {
     useState,
 } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import LoadingOverlay from "@/components/LoadingOverlay";
+import NavigationLoadingLink from "@/components/NavigationLoadingLink";
 
 type ArticleHistoryRow = {
     erp_row_id: number;
@@ -969,13 +970,19 @@ function ArticleHistoryContent() {
 
     return (
         <main className="min-h-screen bg-slate-50 text-gray-900">
+            <LoadingOverlay
+                visible={loading}
+                text="Cargando movimientos..."
+            />
+
             <div className="h-1.5 w-full bg-red-700" />
 
             <header className="border-b bg-white shadow-sm">
                 <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
                     <div className="flex min-w-0 items-center gap-4">
-                        <Link
+                        <NavigationLoadingLink
                             href="/"
+                            loadingText="Volviendo a clientes..."
                             className="flex h-16 w-40 shrink-0 items-center justify-center sm:h-20 sm:w-48"
                         >
                             <Image
@@ -986,7 +993,7 @@ function ArticleHistoryContent() {
                                 priority
                                 className="h-auto max-h-full w-auto object-contain"
                             />
-                        </Link>
+                        </NavigationLoadingLink>
 
                         <div className="hidden border-l border-gray-200 pl-4 sm:block">
                             <h1 className="text-xl font-bold text-gray-900 lg:text-2xl">
@@ -1000,12 +1007,13 @@ function ArticleHistoryContent() {
                     </div>
 
                     <div className="hidden items-center gap-3 md:flex">
-                        <Link
+                        <NavigationLoadingLink
                             href="/"
+                            loadingText="Volviendo a clientes..."
                             className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
                         >
                             Clientes
-                        </Link>
+                        </NavigationLoadingLink>
 
                         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2">
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
@@ -1037,12 +1045,13 @@ function ArticleHistoryContent() {
                     </p>
 
                     <div className="mt-4 grid gap-3">
-                        <Link
+                        <NavigationLoadingLink
                             href="/"
+                            loadingText="Volviendo a clientes..."
                             className="flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 shadow-sm"
                         >
                             ← Volver a clientes
-                        </Link>
+                        </NavigationLoadingLink>
 
                         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
@@ -1325,9 +1334,17 @@ function ArticleHistoryContent() {
                                     disabled={loading}
                                     className="flex w-full items-center justify-center rounded-xl bg-red-700 px-6 py-3 font-bold text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60 lg:w-auto"
                                 >
-                                    {loading
-                                        ? "Buscando..."
-                                        : "Buscar"}
+                                    {loading ? (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <span
+                                                className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                                                aria-hidden="true"
+                                            />
+                                            Buscando...
+                                        </span>
+                                    ) : (
+                                        "Buscar"
+                                    )}
                                 </button>
                             </div>
 
@@ -1517,8 +1534,9 @@ function ArticleHistoryContent() {
 
                                                     <td className="px-3 py-4 align-top">
                                                         {href ? (
-                                                            <Link
+                                                            <NavigationLoadingLink
                                                                 href={href}
+                                                                loadingText="Abriendo comprobante..."
                                                                 className="group inline-flex max-w-full items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-xs font-bold text-red-700 shadow-sm transition hover:border-red-700 hover:bg-red-700 hover:text-white"
                                                             >
                                                                 <span>
@@ -1537,7 +1555,7 @@ function ArticleHistoryContent() {
                                                                 >
                                                                     →
                                                                 </span>
-                                                            </Link>
+                                                            </NavigationLoadingLink>
                                                         ) : (
                                                             "-"
                                                         )}
@@ -1717,15 +1735,16 @@ function ArticleHistoryContent() {
 
                                         {href && (
                                             <div className="border-t border-gray-100 bg-gray-50 p-4">
-                                                <Link
+                                                <NavigationLoadingLink
                                                     href={href}
+                                                    loadingText="Abriendo comprobante..."
                                                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800"
                                                 >
                                                     Ver comprobante
                                                     <span aria-hidden="true">
                                                         →
                                                     </span>
-                                                </Link>
+                                                </NavigationLoadingLink>
                                             </div>
                                         )}
                                     </article>
@@ -1758,7 +1777,7 @@ function ArticleHistoryContent() {
                             <div className="flex gap-2">
                                 <button
                                     type="button"
-                                    disabled={page === 0}
+                                    disabled={loading || page === 0}
                                     onClick={() =>
                                         runSearch(
                                             page - 1
@@ -1772,6 +1791,7 @@ function ArticleHistoryContent() {
                                 <button
                                     type="button"
                                     disabled={
+                                        loading ||
                                         page + 1 >=
                                         totalPages
                                     }

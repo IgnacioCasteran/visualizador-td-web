@@ -1,6 +1,6 @@
 import Image from "next/image";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import NavigationLoadingLink from "@/components/NavigationLoadingLink";
 
 type PageProps = {
   params: Promise<{
@@ -354,12 +354,13 @@ export default async function InvoicePage({
         <div className="h-1.5 bg-red-700" />
 
         <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-          <Link
+          <NavigationLoadingLink
             href={returnUrl}
+            loadingText="Volviendo..."
             className="text-sm font-semibold text-gray-600 hover:text-red-700"
           >
             {returnLabel}
-          </Link>
+          </NavigationLoadingLink>
 
           <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800">
             No se pudo encontrar el comprobante.
@@ -447,12 +448,13 @@ export default async function InvoicePage({
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {/* VOLVER */}
 
-        <Link
+        <NavigationLoadingLink
           href={returnUrl}
+          loadingText="Volviendo..."
           className="inline-flex items-center text-sm font-semibold text-gray-600 transition hover:text-red-700"
         >
           {returnLabel}
-        </Link>
+        </NavigationLoadingLink>
 
         {/* ===================================================
             CABECERA DEL COMPROBANTE
