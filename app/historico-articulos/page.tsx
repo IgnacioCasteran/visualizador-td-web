@@ -2,6 +2,7 @@
 
 import {
     FormEvent,
+    Suspense,
     useEffect,
     useMemo,
     useState,
@@ -196,7 +197,7 @@ function toArgentinaNextDayUtc(date: string) {
     return localMidnight.toISOString();
 }
 
-export default function ArticleHistoryPage() {
+function ArticleHistoryContent() {
     const searchParams = useSearchParams();
 
     const [rows, setRows] =
@@ -1790,3 +1791,28 @@ export default function ArticleHistoryPage() {
         </main>
     );
 }
+
+export default function ArticleHistoryPage() {
+    return (
+        <Suspense
+            fallback={
+                <main className="min-h-screen bg-slate-50">
+                    <div className="h-1.5 w-full bg-red-700" />
+
+                    <div className="mx-auto flex min-h-[70vh] max-w-7xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
+                        <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
+                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-red-700" />
+
+                            <p className="text-sm font-medium text-gray-600">
+                                Cargando histórico de artículos...
+                            </p>
+                        </div>
+                    </div>
+                </main>
+            }
+        >
+            <ArticleHistoryContent />
+        </Suspense>
+    );
+}
+
