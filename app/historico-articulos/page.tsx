@@ -9,13 +9,16 @@ import {
 } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import NavigationLoadingLink from "@/components/NavigationLoadingLink";
+import LogoutButton from "@/components/LogoutButton";
 
 type ArticleHistoryRow = {
+    movement_kind: "document" | "receipt";
     erp_row_id: number;
-    invoice_id: number;
+    invoice_id: number | null;
+    receipt_id: number | null;
     customer_id: number | null;
     customer_name: string | null;
     article_id: number | null;
@@ -27,9 +30,11 @@ type ArticleHistoryRow = {
     issued_at: string | null;
     quantity: number | string | null;
     unit_price: number | string | null;
+    amount: number | string | null;
     discount_percentage: number | string | null;
     user_id: number | null;
     user_name: string | null;
+    observations: string | null;
 };
 
 type DocumentType = {
@@ -51,11 +56,17 @@ type CustomerSuggestion = {
 
 const PAGE_SIZE = 100;
 
+const USED_DOCUMENT_TYPE_IDS = [
+    1, 66, 2, 68, 6, 69, 3, 4, 20, 67,
+] as const;
+
 type SearchState = {
     articleSearch: string;
     customerSearch: string;
     selectedArticleId: number | null;
     selectedCustomerId: number | null;
+    documentFilter: string;
+    documentNumber: string;
     fromDate: string;
     toDate: string;
 };
@@ -140,16 +151,40 @@ function fallbackDocumentInfo(
                 abbreviation: "NC",
             };
 
+        case 3:
+            return {
+                name: "Presupuesto",
+                abbreviation: "PRE",
+            };
+
+        case 4:
+            return {
+                name: "Pedido",
+                abbreviation: "PE",
+            };
+
         case 6:
             return {
                 name: "Nota de débito",
                 abbreviation: "ND",
             };
 
+        case 20:
+            return {
+                name: "Recibo",
+                abbreviation: "REC",
+            };
+
         case 66:
             return {
                 name: "Factura 2",
                 abbreviation: "FCX",
+            };
+
+        case 67:
+            return {
+                name: "Recibo 2",
+                abbreviation: "RECX",
             };
 
         case 68:
@@ -221,6 +256,11 @@ function ArticleHistoryContent() {
         setSelectedCustomerId,
     ] = useState<number | null>(null);
 
+    const [documentFilter, setDocumentFilter] =
+        useState("all");
+    const [documentNumber, setDocumentNumber] =
+        useState("");
+
     const [fromDate, setFromDate] =
         useState("");
     const [toDate, setToDate] =
@@ -281,6 +321,12 @@ function ArticleHistoryContent() {
         const customerTextParam =
             searchParams.get("customer");
 
+        const documentFilterParam =
+            searchParams.get("documentType") ?? "all";
+
+        const documentNumberParam =
+            searchParams.get("documentNumber") ?? "";
+
         const fromDateParam =
             searchParams.get("fromDate") ?? "";
 
@@ -324,6 +370,9 @@ function ArticleHistoryContent() {
             restoredCustomerId
         );
 
+        setDocumentFilter(documentFilterParam);
+        setDocumentNumber(documentNumberParam);
+
         setFromDate(fromDateParam);
         setToDate(toDateParam);
 
@@ -336,6 +385,10 @@ function ArticleHistoryContent() {
                 restoredArticleId,
             selectedCustomerId:
                 restoredCustomerId,
+            documentFilter:
+                documentFilterParam,
+            documentNumber:
+                documentNumberParam,
             fromDate: fromDateParam,
             toDate: toDateParam,
         });
@@ -384,7 +437,11 @@ function ArticleHistoryContent() {
         erp_id,
         name,
         abbreviation
-      `);
+      `)
+            .in(
+                "erp_id",
+                [...USED_DOCUMENT_TYPE_IDS]
+            );
 
         if (error) {
             console.error(
@@ -394,9 +451,21 @@ function ArticleHistoryContent() {
             return;
         }
 
-        setDocumentTypes(
-            (data ?? []) as DocumentType[]
+        const order = new Map<number, number>(
+            USED_DOCUMENT_TYPE_IDS.map(
+                (id, index) => [id, index]
+            )
         );
+
+        const sortedTypes = (
+            (data ?? []) as DocumentType[]
+        ).sort(
+            (a, b) =>
+                (order.get(Number(a.erp_id)) ?? 999) -
+                (order.get(Number(b.erp_id)) ?? 999)
+        );
+
+        setDocumentTypes(sortedTypes);
     }
 
     useEffect(() => {
@@ -525,7 +594,7 @@ function ArticleHistoryContent() {
         }
 
         const { data, error } = await supabase
-            .from("article_history")
+            .from("movement_history")
             .select(`
         customer_id,
         customer_name
@@ -593,6 +662,14 @@ function ArticleHistoryContent() {
             overrides?.selectedCustomerId ??
             selectedCustomerId;
 
+        const currentDocumentFilter =
+            overrides?.documentFilter ??
+            documentFilter;
+
+        const currentDocumentNumber =
+            overrides?.documentNumber ??
+            documentNumber;
+
         const currentFromDate =
             overrides?.fromDate ??
             fromDate;
@@ -602,11 +679,13 @@ function ArticleHistoryContent() {
             toDate;
 
         let query = supabase
-            .from("article_history")
+            .from("movement_history")
             .select(
                 `
+          movement_kind,
           erp_row_id,
           invoice_id,
+          receipt_id,
           customer_id,
           customer_name,
           article_id,
@@ -618,9 +697,11 @@ function ArticleHistoryContent() {
           issued_at,
           quantity,
           unit_price,
+          amount,
           discount_percentage,
           user_id,
-          user_name
+          user_name,
+          observations
         `,
                 {
                     count: "exact",
@@ -686,6 +767,46 @@ function ArticleHistoryContent() {
 
                 query = query.or(
                     filters.join(",")
+                );
+            }
+        }
+
+        if (currentDocumentFilter === "receipt") {
+            // Compatibilidad con URLs viejas que usaban documentType=receipt.
+            query = query.eq(
+                "movement_kind",
+                "receipt"
+            );
+        } else if (
+            currentDocumentFilter.startsWith("document:")
+        ) {
+            const documentTypeId = Number(
+                currentDocumentFilter.replace(
+                    "document:",
+                    ""
+                )
+            );
+
+            if (Number.isFinite(documentTypeId)) {
+                query = query.eq(
+                    "document_type",
+                    documentTypeId
+                );
+            }
+        }
+
+        if (currentDocumentNumber.trim()) {
+            const safeDocumentNumber =
+                sanitizePostgrestValue(
+                    currentDocumentNumber
+                );
+            const numericDocumentNumber =
+                Number(safeDocumentNumber);
+
+            if (Number.isFinite(numericDocumentNumber)) {
+                query = query.eq(
+                    "document_number",
+                    numericDocumentNumber
                 );
             }
         }
@@ -791,6 +912,20 @@ function ArticleHistoryContent() {
             );
         }
 
+        if (currentDocumentFilter !== "all") {
+            params.set(
+                "documentType",
+                currentDocumentFilter
+            );
+        }
+
+        if (currentDocumentNumber.trim()) {
+            params.set(
+                "documentNumber",
+                currentDocumentNumber.trim()
+            );
+        }
+
         if (currentFromDate) {
             params.set(
                 "fromDate",
@@ -838,6 +973,8 @@ function ArticleHistoryContent() {
         setCustomerSearch("");
         setSelectedArticleId(null);
         setSelectedCustomerId(null);
+        setDocumentFilter("all");
+        setDocumentNumber("");
         setFromDate("");
         setToDate("");
         setArticleSuggestions([]);
@@ -848,6 +985,8 @@ function ArticleHistoryContent() {
             customerSearch: "",
             selectedArticleId: null,
             selectedCustomerId: null,
+            documentFilter: "all",
+            documentNumber: "",
             fromDate: "",
             toDate: "",
         });
@@ -871,9 +1010,26 @@ function ArticleHistoryContent() {
     function getDocumentInfo(
         documentType: number | null | undefined
     ) {
+        const numericDocumentType =
+            Number(documentType);
+
+        if (numericDocumentType === 20) {
+            return {
+                name: "Recibo",
+                abbreviation: "REC",
+            };
+        }
+
+        if (numericDocumentType === 67) {
+            return {
+                name: "Recibo 2",
+                abbreviation: "RECX",
+            };
+        }
+
         const type =
             documentTypeMap.get(
-                Number(documentType)
+                numericDocumentType
             );
 
         const fallback =
@@ -903,6 +1059,8 @@ function ArticleHistoryContent() {
         Boolean(
             articleSearch.trim() ||
             customerSearch.trim() ||
+            documentFilter !== "all" ||
+            documentNumber.trim() ||
             fromDate ||
             toDate
         );
@@ -936,6 +1094,20 @@ function ArticleHistoryContent() {
             params.set(
                 "customerId",
                 String(selectedCustomerId)
+            );
+        }
+
+        if (documentFilter !== "all") {
+            params.set(
+                "documentType",
+                documentFilter
+            );
+        }
+
+        if (documentNumber.trim()) {
+            params.set(
+                "documentNumber",
+                documentNumber.trim()
             );
         }
 
@@ -981,7 +1153,7 @@ function ArticleHistoryContent() {
                 <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
                     <div className="flex min-w-0 items-center gap-4">
                         <NavigationLoadingLink
-                            href="/"
+                            href="/clientes"
                             loadingText="Volviendo a clientes..."
                             className="flex h-16 w-40 shrink-0 items-center justify-center sm:h-20 sm:w-48"
                         >
@@ -1008,12 +1180,14 @@ function ArticleHistoryContent() {
 
                     <div className="hidden items-center gap-3 md:flex">
                         <NavigationLoadingLink
-                            href="/"
+                            href="/clientes"
                             loadingText="Volviendo a clientes..."
                             className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
                         >
                             Clientes
                         </NavigationLoadingLink>
+
+                        <LogoutButton />
 
                         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2">
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
@@ -1045,13 +1219,17 @@ function ArticleHistoryContent() {
                     </p>
 
                     <div className="mt-4 grid gap-3">
-                        <NavigationLoadingLink
-                            href="/"
-                            loadingText="Volviendo a clientes..."
-                            className="flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 shadow-sm"
-                        >
-                            ← Volver a clientes
-                        </NavigationLoadingLink>
+                        <div className="grid grid-cols-2 gap-3">
+                            <NavigationLoadingLink
+                                href="/clientes"
+                                loadingText="Volviendo a clientes..."
+                                className="flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 shadow-sm"
+                            >
+                                ← Clientes
+                            </NavigationLoadingLink>
+
+                            <LogoutButton />
+                        </div>
 
                         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
@@ -1285,6 +1463,71 @@ function ArticleHistoryContent() {
                             </div>
                         </div>
 
+                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                            <div>
+                                <label
+                                    htmlFor="document-type"
+                                    className="mb-2 block text-sm font-medium text-gray-700"
+                                >
+                                    Tipo de comprobante
+                                </label>
+
+                                <select
+                                    id="document-type"
+                                    value={documentFilter}
+                                    onChange={(event) =>
+                                        setDocumentFilter(
+                                            event.target.value
+                                        )
+                                    }
+                                    className="block w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+                                >
+                                    <option value="all">
+                                        Todos los comprobantes
+                                    </option>
+                                    {documentTypes.map((type) => {
+                                        const documentInfo =
+                                            getDocumentInfo(
+                                                type.erp_id
+                                            );
+
+                                        return (
+                                            <option
+                                                key={type.erp_id}
+                                                value={`document:${type.erp_id}`}
+                                            >
+                                                {`${documentInfo.abbreviation} - ${documentInfo.name}`}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label
+                                    htmlFor="document-number"
+                                    className="mb-2 block text-sm font-medium text-gray-700"
+                                >
+                                    Nº de comprobante
+                                </label>
+
+                                <input
+                                    id="document-number"
+                                    type="text"
+                                    inputMode="numeric"
+                                    autoComplete="off"
+                                    placeholder="Ej: 108351, 300006400, 595..."
+                                    value={documentNumber}
+                                    onChange={(event) =>
+                                        setDocumentNumber(
+                                            event.target.value
+                                        )
+                                    }
+                                    className="block w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-red-600 focus:ring-2 focus:ring-red-100"
+                                />
+                            </div>
+                        </div>
+
                         <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
                             <div className="min-w-0">
                                 <label
@@ -1376,6 +1619,41 @@ function ArticleHistoryContent() {
                                     </span>
                                 )}
 
+                                {documentFilter !== "all" && (
+                                    <span className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700">
+                                        {documentFilter === "receipt"
+                                            ? "Recibos"
+                                            : (() => {
+                                                const selectedType =
+                                                    documentTypes.find(
+                                                        (type) =>
+                                                            `document:${type.erp_id}` ===
+                                                            documentFilter
+                                                    );
+
+                                                if (!selectedType) {
+                                                    return `Tipo ${documentFilter.replace(
+                                                        "document:",
+                                                        ""
+                                                    )}`;
+                                                }
+
+                                                const documentInfo =
+                                                    getDocumentInfo(
+                                                        selectedType.erp_id
+                                                    );
+
+                                                return `${documentInfo.abbreviation} - ${documentInfo.name}`;
+                                            })()}
+                                    </span>
+                                )}
+
+                                {documentNumber.trim() && (
+                                    <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700">
+                                        Nº {documentNumber.trim()}
+                                    </span>
+                                )}
+
                                 {fromDate && (
                                     <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700">
                                         Desde {fromDate}
@@ -1439,16 +1717,16 @@ function ArticleHistoryContent() {
                                 <table className="w-full table-fixed">
                                     <thead>
                                         <tr className="bg-gray-50">
-                                            <th className="w-[12%] px-3 py-4 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                            <th className="w-[11%] px-3 py-4 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                                 Fecha
                                             </th>
 
-                                            <th className="w-[21%] px-3 py-4 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                            <th className="w-[20%] px-3 py-4 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                                 Cliente
                                             </th>
 
-                                            <th className="w-[31%] px-3 py-4 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                                Artículo
+                                            <th className="w-[26%] px-3 py-4 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                                Detalle
                                             </th>
 
                                             <th className="w-[15%] px-3 py-4 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -1459,12 +1737,12 @@ function ArticleHistoryContent() {
                                                 Cant.
                                             </th>
 
-                                            <th className="w-[7%] px-3 py-4 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                            <th className="w-[8%] px-3 py-4 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                                 Usuario
                                             </th>
 
-                                            <th className="w-[8%] px-3 py-4 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                                Precio
+                                            <th className="w-[14%] px-3 py-4 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                                Importe
                                             </th>
 
                                         </tr>
@@ -1472,6 +1750,10 @@ function ArticleHistoryContent() {
 
                                     <tbody>
                                         {rows.map((row) => {
+                                            const isReceipt =
+                                                row.movement_kind ===
+                                                "receipt";
+
                                             const document =
                                                 getDocumentInfo(
                                                     row.document_type
@@ -1482,15 +1764,21 @@ function ArticleHistoryContent() {
 
                                             const href =
                                                 row.customer_id &&
-                                                    row.invoice_id
-                                                    ? `/clientes/${row.customer_id}/comprobantes/${row.invoice_id}?from=${encodeURIComponent(
-                                                        returnUrl
-                                                    )}`
+                                                (isReceipt
+                                                    ? row.receipt_id
+                                                    : row.invoice_id)
+                                                    ? isReceipt
+                                                        ? `/clientes/${row.customer_id}/recibos/${row.receipt_id}?from=${encodeURIComponent(
+                                                            returnUrl
+                                                        )}`
+                                                        : `/clientes/${row.customer_id}/comprobantes/${row.invoice_id}?from=${encodeURIComponent(
+                                                            returnUrl
+                                                        )}`
                                                     : null;
 
                                             return (
                                                 <tr
-                                                    key={row.erp_row_id}
+                                                    key={`${row.movement_kind}-${row.erp_row_id}`}
                                                     className="border-t border-gray-100 align-top transition hover:bg-red-50/30"
                                                 >
                                                     <td className="px-3 py-4 align-top">
@@ -1521,13 +1809,18 @@ function ArticleHistoryContent() {
 
                                                     <td className="px-3 py-4 align-top">
                                                         <p className="break-words text-sm font-bold text-gray-900">
-                                                            {row.article_code ||
+                                                            {isReceipt
+                                                                ? document.name.toUpperCase()
+                                                                : row.article_code ||
                                                                 `ID ${row.article_id ??
                                                                 "-"
                                                                 }`}
                                                         </p>
                                                         <p className="mt-1 line-clamp-2 text-sm text-gray-500">
-                                                            {row.article_name ||
+                                                            {isReceipt
+                                                                ? row.observations ||
+                                                                "Movimiento de recibo"
+                                                                : row.article_name ||
                                                                 "-"}
                                                         </p>
                                                     </td>
@@ -1536,7 +1829,7 @@ function ArticleHistoryContent() {
                                                         {href ? (
                                                             <NavigationLoadingLink
                                                                 href={href}
-                                                                loadingText="Abriendo comprobante..."
+                                                                loadingText={isReceipt ? "Abriendo recibo..." : "Abriendo comprobante..."}
                                                                 className="group inline-flex max-w-full items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-xs font-bold text-red-700 shadow-sm transition hover:border-red-700 hover:bg-red-700 hover:text-white"
                                                             >
                                                                 <span>
@@ -1561,20 +1854,28 @@ function ArticleHistoryContent() {
                                                         )}
                                                     </td>
 
-                                                    <td className="whitespace-nowrap px-3 py-4 text-right text-sm font-semibold text-gray-900">
-                                                        {formatQuantity(
-                                                            row.quantity
-                                                        )}
+                                                    <td className="whitespace-nowrap px-3 py-4 text-right text-sm font-semibold tabular-nums text-gray-900">
+                                                        {isReceipt
+                                                            ? "-"
+                                                            : formatQuantity(
+                                                                row.quantity
+                                                            )}
                                                     </td>
 
                                                     <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-700">
-                                                        {row.user_name || "-"}
+                                                        {isReceipt
+                                                            ? "-"
+                                                            : row.user_name || "-"}
                                                     </td>
 
-                                                    <td className="whitespace-nowrap px-3 py-4 text-right text-sm font-semibold text-gray-900">
-                                                        {formatMoney(
-                                                            row.unit_price
-                                                        )}
+                                                    <td className="whitespace-nowrap px-3 py-4 text-right text-sm font-semibold tabular-nums text-gray-900">
+                                                        {isReceipt
+                                                            ? formatMoney(
+                                                                row.amount
+                                                            )
+                                                            : formatMoney(
+                                                                row.unit_price
+                                                            )}
                                                     </td>
 
                                                 </tr>
@@ -1600,6 +1901,10 @@ function ArticleHistoryContent() {
 
                         <div className="grid gap-4 lg:hidden">
                             {rows.map((row) => {
+                                const isReceipt =
+                                    row.movement_kind ===
+                                    "receipt";
+
                                 const document =
                                     getDocumentInfo(
                                         row.document_type
@@ -1610,26 +1915,34 @@ function ArticleHistoryContent() {
 
                                 const href =
                                     row.customer_id &&
-                                        row.invoice_id
-                                        ? `/clientes/${row.customer_id}/comprobantes/${row.invoice_id}?from=${encodeURIComponent(
-                                            returnUrl
-                                        )}`
+                                    (isReceipt
+                                        ? row.receipt_id
+                                        : row.invoice_id)
+                                        ? isReceipt
+                                            ? `/clientes/${row.customer_id}/recibos/${row.receipt_id}?from=${encodeURIComponent(
+                                                returnUrl
+                                            )}`
+                                            : `/clientes/${row.customer_id}/comprobantes/${row.invoice_id}?from=${encodeURIComponent(
+                                                returnUrl
+                                            )}`
                                         : null;
 
                                 return (
                                     <article
-                                        key={row.erp_row_id}
+                                        key={`${row.movement_kind}-${row.erp_row_id}`}
                                         className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
                                     >
                                         <div className="border-b border-gray-100 px-5 py-4">
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="min-w-0">
                                                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                                                        Artículo
+                                                        {isReceipt ? "Movimiento" : "Artículo"}
                                                     </p>
 
                                                     <h3 className="mt-1 text-lg font-bold text-gray-900">
-                                                        {row.article_code ||
+                                                        {isReceipt
+                                                            ? `${document.abbreviation}-${row.document_number}`
+                                                            : row.article_code ||
                                                             `ID ${row.article_id ??
                                                             "-"
                                                             }`}
@@ -1639,7 +1952,10 @@ function ArticleHistoryContent() {
                                             </div>
 
                                             <p className="mt-2 text-sm leading-5 text-gray-500">
-                                                {row.article_name ||
+                                                {isReceipt
+                                                    ? row.observations ||
+                                                    "Movimiento de recibo"
+                                                    : row.article_name ||
                                                     "-"}
                                             </p>
                                         </div>
@@ -1686,7 +2002,9 @@ function ArticleHistoryContent() {
                                                 </p>
 
                                                 <p className="mt-1 text-sm font-semibold text-gray-900">
-                                                    {row.user_name ||
+                                                    {isReceipt
+                                                        ? "-"
+                                                        : row.user_name ||
                                                         "-"}
                                                 </p>
                                             </div>
@@ -1697,21 +2015,27 @@ function ArticleHistoryContent() {
                                                 </p>
 
                                                 <p className="mt-1 font-bold text-gray-900">
-                                                    {formatQuantity(
-                                                        row.quantity
-                                                    )}
+                                                    {isReceipt
+                                                        ? "-"
+                                                        : formatQuantity(
+                                                            row.quantity
+                                                        )}
                                                 </p>
                                             </div>
 
                                             <div>
                                                 <p className="text-xs text-gray-500">
-                                                    Precio
+                                                    Importe
                                                 </p>
 
                                                 <p className="mt-1 font-bold text-gray-900">
-                                                    {formatMoney(
-                                                        row.unit_price
-                                                    )}
+                                                    {isReceipt
+                                                        ? formatMoney(
+                                                            row.amount
+                                                        )
+                                                        : formatMoney(
+                                                            row.unit_price
+                                                        )}
                                                 </p>
                                             </div>
 
@@ -1737,10 +2061,12 @@ function ArticleHistoryContent() {
                                             <div className="border-t border-gray-100 bg-gray-50 p-4">
                                                 <NavigationLoadingLink
                                                     href={href}
-                                                    loadingText="Abriendo comprobante..."
+                                                    loadingText={isReceipt ? "Abriendo recibo..." : "Abriendo comprobante..."}
                                                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800"
                                                 >
-                                                    Ver comprobante
+                                                    {isReceipt
+                                                        ? "Ver recibo"
+                                                        : "Ver comprobante"}
                                                     <span aria-hidden="true">
                                                         →
                                                     </span>

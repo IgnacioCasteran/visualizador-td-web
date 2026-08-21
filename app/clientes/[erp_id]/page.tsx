@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 import MovementsTabs from "./MovementsTabs";
 
 type PageProps = {
@@ -11,10 +11,6 @@ type PageProps = {
 
 type InvoiceInfo = {
   document_type: number;
-  number: number | string | null;
-};
-
-type ReceiptInfo = {
   number: number | string | null;
 };
 
@@ -109,6 +105,8 @@ function getBalanceClass(balance: number) {
 export default async function CustomerPage({
   params,
 }: PageProps) {
+  const supabase = await createClient();
+
   const { erp_id } = await params;
 
   const customerId = Number(erp_id);
@@ -166,7 +164,7 @@ export default async function CustomerPage({
 
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <Link
-            href="/"
+            href="/clientes"
             className="inline-flex items-center gap-2 text-sm font-semibold text-gray-600 transition hover:text-red-700"
           >
             ← Volver a clientes
@@ -330,60 +328,6 @@ export default async function CustomerPage({
 
   /*
    * =========================================================
-   * RECIBOS
-   * =========================================================
-   */
-
-  let receipts: {
-    erp_id: number;
-    number: number | string | null;
-  }[] = [];
-
-  let receiptsErrorMessage:
-    | string
-    | null = null;
-
-  if (documentIds.length > 0) {
-    const {
-      data: receiptsData,
-      error: receiptsError,
-    } = await supabase
-      .from("receipts")
-      .select(`
-        erp_id,
-        number
-      `)
-      .in("erp_id", documentIds);
-
-    if (receiptsError) {
-      console.error(
-        "Error al cargar receipts:",
-        receiptsError
-      );
-
-      receiptsErrorMessage =
-        receiptsError.message;
-    } else {
-      receipts = receiptsData ?? [];
-    }
-  }
-
-  const receiptMap = new Map<
-    number,
-    ReceiptInfo
-  >();
-
-  for (const receipt of receipts) {
-    receiptMap.set(
-      Number(receipt.erp_id),
-      {
-        number: receipt.number,
-      }
-    );
-  }
-
-  /*
-   * =========================================================
    * CUENTA CORRIENTE
    * =========================================================
    */
@@ -482,28 +426,6 @@ export default async function CustomerPage({
         documentType
       );
 
-    const typeId = Number(documentType);
-
-    if (
-      typeId === 20 ||
-      typeId === 67
-    ) {
-      const receipt =
-        receiptMap.get(
-          Number(documentId)
-        );
-
-      if (
-        receipt &&
-        receipt.number !== null &&
-        receipt.number !== undefined
-      ) {
-        return prefix
-          ? `${prefix}-${receipt.number}`
-          : String(receipt.number);
-      }
-    }
-
     const invoice =
       invoiceMap.get(
         Number(documentId)
@@ -579,7 +501,7 @@ export default async function CustomerPage({
             {/* LOGO */}
 
             <Link
-              href="/"
+              href="/clientes"
               className="flex h-14 w-36 shrink-0 items-center justify-center sm:h-16 sm:w-40"
             >
               <Image
@@ -633,7 +555,7 @@ export default async function CustomerPage({
         {/* VOLVER */}
 
         <Link
-          href="/"
+          href="/clientes"
           className="inline-flex items-center gap-2 text-sm font-semibold text-gray-600 transition hover:text-red-700"
         >
           <span>←</span>
@@ -941,18 +863,6 @@ export default async function CustomerPage({
 
             <p className="mt-1 text-sm">
               {invoicesErrorMessage}
-            </p>
-          </div>
-        )}
-
-        {receiptsErrorMessage && (
-          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-900 shadow-sm">
-            <p className="font-semibold">
-              Error al cargar los números de recibo
-            </p>
-
-            <p className="mt-1 text-sm">
-              {receiptsErrorMessage}
             </p>
           </div>
         )}

@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import {
+  Geist,
+  Geist_Mono,
+} from "next/font/google";
+
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,17 +17,22 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cuentas | La Casa del Tren Delantero",
-  description: "Consulta de clientes y cuentas corrientes",
+  title: "La Casa del Tren Delantero",
+  description:
+    "Sistema de consulta de clientes, comprobantes e histórico de artículos",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="flex min-h-full flex-col">
         {children}
       </body>
     </html>

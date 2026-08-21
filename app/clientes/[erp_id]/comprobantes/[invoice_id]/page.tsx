@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 import NavigationLoadingLink from "@/components/NavigationLoadingLink";
 
 type PageProps = {
@@ -188,6 +188,8 @@ export default async function InvoicePage({
   params,
   searchParams,
 }: PageProps) {
+  const supabase = await createClient();
+
   const { erp_id, invoice_id } = await params;
 
   const resolvedSearchParams =
