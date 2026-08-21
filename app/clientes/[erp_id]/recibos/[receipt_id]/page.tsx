@@ -292,7 +292,7 @@ export default async function ReceiptPage({
               className="flex h-14 w-36 shrink-0 items-center justify-center sm:h-16 sm:w-40"
             >
               <Image
-                src="/logo.JPG"
+                src="/logo.jpg"
                 alt="La Casa del Tren Delantero"
                 width={220}
                 height={90}

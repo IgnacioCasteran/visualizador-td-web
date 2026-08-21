@@ -1158,7 +1158,7 @@ function ArticleHistoryContent() {
                             className="flex h-16 w-40 shrink-0 items-center justify-center sm:h-20 sm:w-48"
                         >
                             <Image
-                                src="/logo.JPG"
+                                src="/logo.jpg"
                                 alt="La Casa del Tren Delantero"
                                 width={220}
                                 height={90}

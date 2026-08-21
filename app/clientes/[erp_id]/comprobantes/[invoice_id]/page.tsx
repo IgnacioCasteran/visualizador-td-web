@@ -405,7 +405,7 @@ export default async function InvoicePage({
           <div className="flex min-w-0 items-center gap-4">
             <div className="flex h-16 w-40 shrink-0 items-center justify-center sm:h-20 sm:w-48">
               <Image
-                src="/logo.JPG"
+                src="/logo.jpg"
                 alt="La Casa del Tren Delantero"
                 width={220}
                 height={90}

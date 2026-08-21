@@ -141,7 +141,7 @@ export default async function CustomerPage({
           <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-4 sm:px-6 lg:px-8">
             <div className="flex h-14 w-36 items-center justify-center sm:h-16 sm:w-40">
               <Image
-                src="/logo.JPG"
+                src="/logo.jpg"
                 alt="La Casa del Tren Delantero"
                 width={220}
                 height={90}
@@ -505,7 +505,7 @@ export default async function CustomerPage({
               className="flex h-14 w-36 shrink-0 items-center justify-center sm:h-16 sm:w-40"
             >
               <Image
-                src="/logo.JPG"
+                src="/logo.jpg"
                 alt="La Casa del Tren Delantero"
                 width={220}
                 height={90}
