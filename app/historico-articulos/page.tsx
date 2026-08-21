@@ -277,6 +277,8 @@ function ArticleHistoryContent() {
         useState<string | null>(null);
     const [lastSync, setLastSync] =
         useState<string | null>(null);
+    const [loggedUsername, setLoggedUsername] =
+        useState<string>("");
 
     const [
         articleSuggestions,
@@ -308,6 +310,7 @@ function ArticleHistoryContent() {
     useEffect(() => {
         loadLastSync();
         loadDocumentTypes();
+        loadLoggedUser();
 
         const articleIdParam =
             searchParams.get("articleId");
@@ -428,6 +431,30 @@ function ArticleHistoryContent() {
         } else {
             setLastSync(null);
         }
+    }
+
+    async function loadLoggedUser() {
+        const {
+            data: { user },
+            error,
+        } = await supabase.auth.getUser();
+
+        if (error || !user?.email) {
+            if (error) {
+                console.error(
+                    "Error obteniendo usuario logueado:",
+                    error
+                );
+            }
+
+            setLoggedUsername("");
+            return;
+        }
+
+        const username =
+            user.email.split("@")[0] || user.email;
+
+        setLoggedUsername(username);
     }
 
     async function loadDocumentTypes() {
@@ -1189,6 +1216,24 @@ function ArticleHistoryContent() {
 
                         <LogoutButton />
 
+                        {loggedUsername && (
+                            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 text-sm font-extrabold uppercase text-red-700">
+                                    {loggedUsername.charAt(0)}
+                                </div>
+
+                                <div className="min-w-0">
+                                    <p className="text-[11px] font-medium leading-none text-gray-400">
+                                        Usuario
+                                    </p>
+
+                                    <p className="mt-1 max-w-[130px] truncate text-sm font-bold leading-none text-gray-900">
+                                        {loggedUsername}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2">
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
 
@@ -1230,6 +1275,24 @@ function ArticleHistoryContent() {
 
                             <LogoutButton />
                         </div>
+
+                        {loggedUsername && (
+                            <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-sm font-extrabold uppercase text-red-700">
+                                    {loggedUsername.charAt(0)}
+                                </div>
+
+                                <div className="min-w-0">
+                                    <p className="text-xs font-medium text-gray-500">
+                                        Usuario conectado
+                                    </p>
+
+                                    <p className="mt-0.5 truncate text-sm font-bold text-gray-900">
+                                        {loggedUsername}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
