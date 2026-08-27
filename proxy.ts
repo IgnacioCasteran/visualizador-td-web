@@ -61,6 +61,22 @@ export async function proxy(
 
   /*
    * =========================================================
+   * RECURSOS PÚBLICOS / PWA
+   * =========================================================
+   */
+
+  const isPublicAsset =
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js" ||
+    pathname === "/logo.jpg" ||
+    pathname === "/favicon.ico";
+
+  if (isPublicAsset) {
+    return response;
+  }
+
+  /*
+   * =========================================================
    * VALIDAR SESIÓN
    * =========================================================
    */
@@ -119,6 +135,6 @@ export async function proxy(
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
