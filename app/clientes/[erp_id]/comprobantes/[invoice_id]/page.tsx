@@ -450,13 +450,23 @@ export default async function InvoicePage({
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {/* VOLVER */}
 
-        <NavigationLoadingLink
-          href={returnUrl}
-          loadingText="Volviendo..."
-          className="inline-flex items-center text-sm font-semibold text-gray-600 transition hover:text-red-700"
-        >
-          {returnLabel}
-        </NavigationLoadingLink>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <NavigationLoadingLink
+            href={returnUrl}
+            loadingText="Volviendo..."
+            className="inline-flex items-center text-sm font-semibold text-gray-600 transition hover:text-red-700"
+          >
+            {returnLabel}
+          </NavigationLoadingLink>
+
+          <a
+            href={`/api/comprobantes/${invoiceId}/pdf`}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2"
+          >
+            <span aria-hidden="true">📄</span>
+            DESCARGAR COMPROBANTE
+          </a>
+        </div>
 
         {/* ===================================================
             CABECERA DEL COMPROBANTE
