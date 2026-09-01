@@ -1214,6 +1214,14 @@ function ArticleHistoryContent() {
                             Clientes
                         </NavigationLoadingLink>
 
+                        <NavigationLoadingLink
+                            href="/stock"
+                            loadingText="Abriendo carga de stock..."
+                            className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                        >
+                            Stock
+                        </NavigationLoadingLink>
+
                         <LogoutButton />
 
                         {loggedUsername && (
@@ -1275,6 +1283,14 @@ function ArticleHistoryContent() {
 
                             <LogoutButton />
                         </div>
+
+                        <NavigationLoadingLink
+                            href="/stock"
+                            loadingText="Abriendo carga de stock..."
+                            className="flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 shadow-sm"
+                        >
+                            Carga de stock
+                        </NavigationLoadingLink>
 
                         {loggedUsername && (
                             <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">

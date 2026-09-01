@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import MovementsTabs from "./MovementsTabs";
+import AccountSummaryButton from "./AccountSummaryButton";
 
 type PageProps = {
   params: Promise<{
@@ -712,14 +713,21 @@ export default async function CustomerPage({
         =================================================== */}
 
         <section className="mt-6">
-          <div className="mb-3">
-            <h2 className="text-lg font-bold text-gray-900">
-              Resumen de cuenta
-            </h2>
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">
+                Resumen de cuenta
+              </h2>
 
-            <p className="mt-1 text-sm text-gray-500">
-              Estado actual de las cuentas del cliente
-            </p>
+              <p className="mt-1 text-sm text-gray-500">
+                Estado actual de las cuentas del cliente
+              </p>
+            </div>
+
+            <AccountSummaryButton
+              customerId={customerId}
+              customerName={customerName}
+            />
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
