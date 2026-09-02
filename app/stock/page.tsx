@@ -111,12 +111,57 @@ function supplierCodeCompact(value: string) {
   return canonicalSupplierCode(value).replace(/[\s-]+/g, "");
 }
 
-function buildExpectedTdCode(prefix: string, supplierCode: string) {
-  const normalized = canonicalSupplierCode(supplierCode)
-    .replace(new RegExp(`^${prefix}-?`, "i"), "")
-    .trim();
+function supplierCodeTailForBrand(prefix: string, supplierCode: string) {
+  const cleanPrefix = prefix.trim().replace(/-+$/g, "");
+  const normalized = canonicalSupplierCode(supplierCode).trim();
 
-  return `${prefix}-${normalized}`;
+  /*
+   * El selector de marca YA define el prefijo TD correcto.
+   *
+   * Ejemplos:
+   * CAPEMI seleccionado = 35
+   *   02-1433   -> 1433   -> 35-1433
+   *   01-1428   -> 1428   -> 35-1428
+   *   02-1142/1 -> 1142/1 -> 35-1142/1
+   *
+   * ZF / SACHS:
+   *   315 563 -> 315 563 -> 04-315 563
+   *
+   * VMG:
+   *   BA419 -> BA419 -> 50-BA419 (si no existe equivalencia aprendida)
+   *
+   * SERRAT:
+   *   10908 -> 10908 -> se prueba con cada prefijo seleccionado.
+   *
+   * La regla importante es:
+   * si el código de factura YA trae un prefijo numérico propio "NN-",
+   * ese prefijo pertenece al proveedor y se reemplaza por el prefijo TD
+   * elegido en el selector.
+   */
+
+  // Si ya vino con el mismo prefijo TD, simplemente lo quitamos para
+  // volver a construirlo una sola vez.
+  const sameTdPrefix = new RegExp(`^${cleanPrefix}-`, "i");
+  if (sameTdPrefix.test(normalized)) {
+    return normalized.replace(sameTdPrefix, "").trim();
+  }
+
+  // Prefijo interno del proveedor: 01-, 02-, 03-, etc.
+  // Lo removemos porque el prefijo TD lo aporta el selector.
+  const supplierInternalPrefix = normalized.match(/^\d{2}-(.+)$/);
+
+  if (supplierInternalPrefix) {
+    return supplierInternalPrefix[1].trim();
+  }
+
+  return normalized;
+}
+
+function buildExpectedTdCode(prefix: string, supplierCode: string) {
+  const cleanPrefix = prefix.trim().replace(/-+$/g, "");
+  const tail = supplierCodeTailForBrand(cleanPrefix, supplierCode);
+
+  return `${cleanPrefix}-${tail}`;
 }
 
 
@@ -576,9 +621,12 @@ export default function StockPage() {
         const prefix = brand.prefix?.trim() ?? "";
         if (!prefix) continue;
 
-        const codeTail = canonicalSupplierCode(item.supplierCode)
-          .replace(new RegExp(`^${prefix}-?`, "i"), "")
-          .trim();
+        const codeTail = supplierCodeTailForBrand(
+          prefix,
+          item.supplierCode
+        );
+
+        const expectedTailCompact = supplierCodeCompact(codeTail);
 
         const { data: candidates } = await supabase
           .from("articles")
@@ -592,7 +640,7 @@ export default function StockPage() {
             String(candidate.code ?? "")
           ).replace(new RegExp(`^${prefix}`), "");
 
-          return candidateCode === compactCode;
+          return candidateCode === expectedTailCompact;
         });
 
         if (normalizedCandidate) {

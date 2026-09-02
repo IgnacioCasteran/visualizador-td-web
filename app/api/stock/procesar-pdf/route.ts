@@ -177,6 +177,61 @@ function parseVmg(text: string): ParsedItem[] {
 }
 
 /* =========================================================
+   CAPEMI / A. GIACOMELLI S.A.
+   ========================================================= */
+
+/**
+ * Formato CAPEMI real:
+ *
+ * 02-1433 [002014330] BUJE BARRA ESTABILIZADORA (ALTO)
+ * 10,00 Unidades 1.606,83 IVA 21% $ 16.068,30
+ *
+ * 02-1143/1 [002011431] BUJE BARRA ESTABILIZADORA...
+ * 10,00 Unidades ...
+ *
+ * Para la equivalencia nos interesa:
+ * - supplierCode: 02-1433 / 01-1428 / 02-1143/1 ...
+ * - description: descripción del artículo
+ * - quantity: 10 / 20 / 50 ...
+ *
+ * El código entre corchetes es un código interno de CAPEMI y no se usa
+ * para construir el código TD.
+ */
+function parseCapemi(text: string): ParsedItem[] {
+  const items: ParsedItem[] = [];
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  const rowRegex =
+    /^(\d{2}-\d{4}(?:\/\d+)?)\s+\[([A-Z0-9]+)\]\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s+UNIDADES?\b.*$/i;
+
+  for (const line of lines) {
+    const match = line.match(rowRegex);
+
+    if (!match) continue;
+
+    const supplierCode = normalizeCode(match[1]);
+    const description = cleanDescription(match[3]);
+    const quantity = parseQuantity(match[4]);
+
+    if (!supplierCode || !description || quantity <= 0) {
+      continue;
+    }
+
+    items.push({
+      supplierCode,
+      description,
+      quantity,
+    });
+  }
+
+  return consolidate(items);
+}
+
+/* =========================================================
    SERRAT
    ========================================================= */
 
@@ -198,32 +253,112 @@ function parseSerrat(text: string): ParsedItem[] {
   const items: ParsedItem[] = [];
 
   /*
-   * Formato Serrat real:
+   * IMPORTANTE - ORDEN REAL DE EXTRACCIÓN DEL PDF SERRAT
    *
-   * 10908 FUELLES DE SUSPENSION 5.00 7,653.30 38,266.50
-   * 20001 KIT DE TRANSMISION   10.00 6,814.08 68,140.80
-   * 40055 TOPES DE SUSPENSION  10.00 2,225.76 22,257.60
+   * Visualmente la factura muestra:
    *
-   * La factura también contiene códigos de otras familias (200xx, 310xx,
-   * 320xx, 400xx), pero el código de proveedor SIEMPRE es el primer bloque
-   * numérico de 5 dígitos.
+   *   10908 | FUELLES DE SUSPENSION | 5.00 | 7,653.30 | 38,266.50
    *
-   * A diferencia del intento anterior, acá NO aplanamos todo el PDF de entrada.
-   * Primero probamos línea por línea, que en esta factura viene perfectamente
-   * estructurado. Si unpdf llegara a romper alguna fila, hacemos un fallback
-   * a texto aplanado después.
+   * Pero el motor PDF puede entregar ese mismo renglón así:
+   *
+   *   5.00
+   *   7,653.30
+   *   38,266.50
+   *   10908
+   *   FUELLES DE SUSPENSION
+   *
+   * Por eso NO debemos depender del orden visual de las columnas.
+   *
+   * Este parser soporta:
+   * 1) orden de extracción real: cantidad -> precio -> total -> código -> detalle
+   * 2) orden tradicional: código -> detalle -> cantidad -> precio -> total
+   *
+   * ZF y VMG NO se tocan.
    */
-
-  const lineRegex =
-    /^\s*(\d{5})\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s+([\d.,]+)\s+([\d.,]+)\s*$/i;
 
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter(Boolean);
 
+  const quantityRegex = /^\d+(?:[.,]\d{2,3})$/;
+  const moneyRegex = /^\d{1,3}(?:,\d{3})*\.\d{2}$/;
+  const codeRegex = /^\d{5}$/;
+
+  function validDescription(value: string) {
+    const normalized = value.trim().toUpperCase();
+
+    if (!normalized || normalized.length < 3) return false;
+
+    const forbidden = [
+      "SUBTOTAL",
+      "NETO",
+      "TOTAL",
+      "PESOS",
+      "TRANSPORTE",
+      "OBSERVACIONES:",
+      "DETALLE DE FACTURAS PENDIENTES",
+    ];
+
+    return !forbidden.some(
+      (word) =>
+        normalized === word ||
+        normalized.startsWith(word)
+    );
+  }
+
+  /*
+   * ESTRATEGIA PRINCIPAL:
+   *
+   * cantidad
+   * precio
+   * total
+   * código
+   * descripción
+   */
+  for (let index = 0; index <= lines.length - 5; index += 1) {
+    const quantityLine = lines[index];
+    const priceLine = lines[index + 1];
+    const totalLine = lines[index + 2];
+    const codeLine = lines[index + 3];
+    const descriptionLine = lines[index + 4];
+
+    if (!quantityRegex.test(quantityLine)) continue;
+    if (!moneyRegex.test(priceLine)) continue;
+    if (!moneyRegex.test(totalLine)) continue;
+    if (!codeRegex.test(codeLine)) continue;
+    if (!validDescription(descriptionLine)) continue;
+
+    const quantity = parseQuantity(quantityLine);
+
+    if (quantity <= 0) continue;
+
+    items.push({
+      supplierCode: codeLine,
+      description: cleanDescription(descriptionLine),
+      quantity,
+    });
+
+    // Saltamos los cuatro tokens siguientes porque ya forman parte
+    // del artículo que acabamos de reconocer.
+    index += 4;
+  }
+
+  if (items.length > 0) {
+    return consolidate(items);
+  }
+
+  /*
+   * FALLBACK 1:
+   * Algunas versiones/extractores sí devuelven cada fila en el orden visual:
+   *
+   * código + detalle + cantidad + precio + total
+   */
+  const visualRowRegex =
+    /^\s*(\d{5})\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s+([\d.,]+)\s+([\d.,]+)\s*$/i;
+
   for (const line of lines) {
-    const match = line.match(lineRegex);
+    const match = line.match(visualRowRegex);
 
     if (!match) continue;
 
@@ -231,7 +366,9 @@ function parseSerrat(text: string): ParsedItem[] {
     const description = cleanDescription(match[2]);
     const quantity = parseQuantity(match[3]);
 
-    if (!code || !description || quantity <= 0) continue;
+    if (!code || !validDescription(description) || quantity <= 0) {
+      continue;
+    }
 
     items.push({
       supplierCode: code,
@@ -245,31 +382,23 @@ function parseSerrat(text: string): ParsedItem[] {
   }
 
   /*
-   * Fallback tolerante a saltos internos del PDF.
+   * FALLBACK 2:
+   * Si el PDF agrupa algunos tokens, buscamos el patrón completo sobre
+   * texto normalizado. Este fallback es exclusivo de Serrat.
    */
-  const flat = text
-    .replace(/\r/g, " ")
-    .replace(/\n/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const flat = lines.join(" ");
 
-  const money = String.raw`\d{1,3}(?:,\d{3})*\.\d{2}`;
+  const extractionOrderRegex =
+    /\b(\d+(?:[.,]\d{2,3}))\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s+(\d{5})\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ0-9 /().,+\-]{2,}?)(?=\s+\d+(?:[.,]\d{2,3})\s+\d{1,3}(?:,\d{3})*\.\d{2}\s+\d{1,3}(?:,\d{3})*\.\d{2}\s+\d{5}\b|\s+TRANSPORTE\b|\s+SUBTOTAL\b|\s+TOTAL\b|$)/gi;
 
-  const rowRegex = new RegExp(
-    String.raw`\b(\d{5})\s+` +
-      String.raw`([A-ZÁÉÍÓÚÑ0-9][A-ZÁÉÍÓÚÑ0-9 /().,+\-]{2,}?)\s+` +
-      String.raw`(\d+(?:\.\d{2,3}))\s+` +
-      String.raw`(${money})\s+` +
-      String.raw`(${money})(?=\s|$)`,
-    "gi"
-  );
+  for (const match of flat.matchAll(extractionOrderRegex)) {
+    const quantity = parseQuantity(match[1]);
+    const code = normalizeCode(match[4]);
+    const description = cleanDescription(match[5]);
 
-  for (const match of flat.matchAll(rowRegex)) {
-    const code = normalizeCode(match[1]);
-    const description = cleanDescription(match[2]);
-    const quantity = parseQuantity(match[3]);
-
-    if (!code || !description || quantity <= 0) continue;
+    if (!code || !validDescription(description) || quantity <= 0) {
+      continue;
+    }
 
     items.push({
       supplierCode: code,
@@ -279,6 +408,139 @@ function parseSerrat(text: string): ParsedItem[] {
   }
 
   return consolidate(items);
+}
+
+
+/**
+ * SERRAT - lector geométrico del PDF.
+ *
+ * Este es el punto clave para este proveedor:
+ * extractText() puede alterar el orden de lectura de las columnas aunque
+ * visualmente la tabla esté perfecta. En vez de confiar en ese string,
+ * tomamos los elementos originales de cada página, los agrupamos por
+ * coordenada Y (renglón) y los ordenamos por X (izquierda -> derecha).
+ *
+ * Así reconstruimos exactamente:
+ *
+ * 10908 | FUELLES DE SUSPENSION | 5.00 | 7,653.30 | 38,266.50
+ *
+ * sin afectar ZF ni VMG.
+ */
+async function parseSerratFromPdf(pdf: any): Promise<ParsedItem[]> {
+  const result: ParsedItem[] = [];
+
+  const pageCount = Number(pdf?.numPages ?? 0);
+
+  for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+
+    const positioned = (content.items ?? [])
+      .map((item: any) => {
+        const transform = Array.isArray(item?.transform)
+          ? item.transform
+          : [];
+
+        return {
+          text: String(item?.str ?? "").replace(/\s+/g, " ").trim(),
+          x: Number(transform[4] ?? 0),
+          y: Number(transform[5] ?? 0),
+        };
+      })
+      .filter(
+        (item: { text: string; x: number; y: number }) =>
+          item.text &&
+          Number.isFinite(item.x) &&
+          Number.isFinite(item.y)
+      );
+
+    // Primero ordenamos visualmente de arriba hacia abajo.
+    positioned.sort(
+      (
+        a: { text: string; x: number; y: number },
+        b: { text: string; x: number; y: number }
+      ) => {
+        const yDiff = b.y - a.y;
+
+        if (Math.abs(yDiff) > 1.5) {
+          return yDiff;
+        }
+
+        return a.x - b.x;
+      }
+    );
+
+    const rows: Array<{
+      y: number;
+      cells: Array<{ text: string; x: number }>;
+    }> = [];
+
+    for (const item of positioned) {
+      let row = rows.find(
+        (candidate) => Math.abs(candidate.y - item.y) <= 1.8
+      );
+
+      if (!row) {
+        row = {
+          y: item.y,
+          cells: [],
+        };
+
+        rows.push(row);
+      }
+
+      row.cells.push({
+        text: item.text,
+        x: item.x,
+      });
+    }
+
+    rows.sort((a, b) => b.y - a.y);
+
+    for (const row of rows) {
+      row.cells.sort((a, b) => a.x - b.x);
+
+      const line = row.cells
+        .map((cell) => cell.text)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      /*
+       * Ejemplo reconstruido:
+       * 10908 FUELLES DE SUSPENSION 5.00 7,653.30 38,266.50
+       */
+      const match = line.match(
+        /^\s*(\d{5})\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s+([\d.,]+)\s+([\d.,]+)\s*$/
+      );
+
+      if (!match) continue;
+
+      const code = normalizeCode(match[1]);
+      const description = cleanDescription(match[2]);
+      const quantity = parseQuantity(match[3]);
+
+      if (!code || quantity <= 0) continue;
+
+      // Evitamos encabezados/totales por seguridad.
+      if (
+        !/[A-ZÁÉÍÓÚÑ]/i.test(description) ||
+        /^(SUBTOTAL|NETO|TOTAL|TRANSPORTE|OBSERVACIONES)/i.test(
+          description
+        )
+      ) {
+        continue;
+      }
+
+      result.push({
+        supplierCode: code,
+        description,
+        quantity,
+      });
+    }
+  }
+
+  return consolidate(result);
 }
 
 /* =========================================================
@@ -350,7 +612,7 @@ function parseGenericNumericTable(text: string): ParsedItem[] {
    SELECCIÓN AUTOMÁTICA
    ========================================================= */
 
-type KnownFormat = "ZF" | "VMG" | "SERRAT";
+type KnownFormat = "ZF" | "VMG" | "SERRAT" | "CAPEMI";
 
 type SelectedBrandHint = {
   erpId?: number;
@@ -406,6 +668,13 @@ function detectFormatFromSelectedBrands(
     return "SERRAT";
   }
 
+  if (
+    names.includes("CAPEMI") ||
+    names.includes("GIACOMELLI")
+  ) {
+    return "CAPEMI";
+  }
+
   return null;
 }
 
@@ -447,6 +716,15 @@ function detectFormatFromPdfText(text: string): KnownFormat | null {
     return "SERRAT";
   }
 
+  if (
+    haystack.includes("CAPEMI") ||
+    haystack.includes("A. GIACOMELLI S.A.") ||
+    haystack.includes("CAPEMI@CAPEMI.AR") ||
+    haystack.includes("30-56661376-6")
+  ) {
+    return "CAPEMI";
+  }
+
   return null;
 }
 
@@ -460,6 +738,9 @@ function runKnownParser(format: KnownFormat, text: string): ParserResult {
 
     case "SERRAT":
       return { parser: "SERRAT", items: parseSerrat(text) };
+
+    case "CAPEMI":
+      return { parser: "CAPEMI", items: parseCapemi(text) };
   }
 }
 
@@ -534,6 +815,7 @@ function parseInvoice(
     { parser: "ZF_FALLBACK", items: parseZf(text) },
     { parser: "VMG_FALLBACK", items: parseVmg(text) },
     { parser: "SERRAT_FALLBACK", items: parseSerrat(text) },
+    { parser: "CAPEMI_FALLBACK", items: parseCapemi(text) },
   ];
 
   structuralFallbacks.sort((a, b) => b.items.length - a.items.length);
@@ -635,7 +917,46 @@ export async function POST(request: Request) {
       );
     }
 
-    const parsed = parseInvoice(text, brandName, selectedBrands);
+    const selectedFormat = detectFormatFromSelectedBrands(
+      brandName,
+      selectedBrands
+    );
+
+    const pdfDetectedFormat = detectFormatFromPdfText(text);
+
+    let parsed: ParserResult;
+
+    /*
+     * SERRAT se procesa directamente desde las coordenadas del PDF.
+     * NO usamos extractText() para reconstruir sus filas porque ese método
+     * es justamente el que estaba mezclando las columnas.
+     */
+    if (
+      selectedFormat === "SERRAT" ||
+      pdfDetectedFormat === "SERRAT"
+    ) {
+      const serratItems = await parseSerratFromPdf(pdf);
+
+      if (serratItems.length > 0) {
+        parsed = {
+          parser: "SERRAT_GEOMETRIC",
+          items: serratItems,
+        };
+      } else {
+        // Conservamos el parser textual como respaldo.
+        parsed = {
+          parser: "SERRAT_TEXT_FALLBACK",
+          items: parseSerrat(text),
+        };
+      }
+    } else {
+      // ZF y VMG siguen exactamente con la lógica que ya funciona.
+      parsed = parseInvoice(
+        text,
+        brandName,
+        selectedBrands
+      );
+    }
 
     // Log útil solamente en desarrollo.
     console.log(
