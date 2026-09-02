@@ -544,6 +544,174 @@ async function parseSerratFromPdf(pdf: any): Promise<ParsedItem[]> {
 }
 
 /* =========================================================
+   AG / ANICETO GOMEZ S.A.
+   ========================================================= */
+
+/**
+ * Formato real de la factura AG:
+ *
+ * 1  1-041171  CHEVROLET S-10 2.8 CTDI 4x4 2013-  4  123723,10  494.892,40
+ * 2  1-213142  Renault Kangoo Furgon 2018 Del      4   74584,90  298.339,60
+ *
+ * El código de proveedor es "1-XXXXXX".
+ * El prefijo TD NO se decide acá: lo aporta el selector de familias
+ * (por ejemplo 01- AG RESORTES o 81- AG KIT PROGRESIVOS).
+ */
+function parseAg(text: string): ParsedItem[] {
+  const items: ParsedItem[] = [];
+
+  const flat = text
+    .replace(/\r/g, " ")
+    .replace(/\n/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  /*
+   * Buscamos cada renglón por:
+   * número de ítem + código 1-XXXXXX + descripción + cantidad + precio + total.
+   *
+   * La descripción puede tener palabras/números y el PDF puede meter saltos,
+   * por eso trabajamos sobre texto aplanado.
+   */
+  const rowRegex =
+    /\b\d+\s+(1-\d{6})\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s+([\d.,]+)\s+([\d.,]+)(?=\s+\d+\s+1-\d{6}\b|\s+TOTAL\b|\s+INDICADOR\b|\s+PERC\b|\s+IVA[_\s]|$)/gi;
+
+  for (const match of flat.matchAll(rowRegex)) {
+    const supplierCode = normalizeCode(match[1]);
+    const description = cleanDescription(match[2]);
+    const quantity = parseQuantity(match[3]);
+
+    if (!supplierCode || !description || quantity <= 0) {
+      continue;
+    }
+
+    items.push({
+      supplierCode,
+      description,
+      quantity,
+    });
+  }
+
+  return consolidate(items);
+}
+
+/**
+ * AG - lector geométrico.
+ *
+ * SAP Business One puede entregar el texto en un orden distinto al visual
+ * (especialmente cuando la descripción ocupa dos líneas). Para AG usamos
+ * primero las coordenadas del PDF y reconstruimos cada fila izquierda->derecha.
+ *
+ * Esto SOLO se ejecuta para AG y no modifica ZF, VMG, SERRAT ni CAPEMI.
+ */
+async function parseAgFromPdf(pdf: any): Promise<ParsedItem[]> {
+  const result: ParsedItem[] = [];
+  const pageCount = Number(pdf?.numPages ?? 0);
+
+  for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+
+    const positioned = (content.items ?? [])
+      .map((item: any) => {
+        const transform = Array.isArray(item?.transform)
+          ? item.transform
+          : [];
+
+        return {
+          text: String(item?.str ?? "").replace(/\s+/g, " ").trim(),
+          x: Number(transform[4] ?? 0),
+          y: Number(transform[5] ?? 0),
+        };
+      })
+      .filter(
+        (item: { text: string; x: number; y: number }) =>
+          item.text &&
+          Number.isFinite(item.x) &&
+          Number.isFinite(item.y)
+      );
+
+    positioned.sort(
+      (
+        a: { text: string; x: number; y: number },
+        b: { text: string; x: number; y: number }
+      ) => {
+        const yDiff = b.y - a.y;
+
+        if (Math.abs(yDiff) > 1.5) {
+          return yDiff;
+        }
+
+        return a.x - b.x;
+      }
+    );
+
+    const rows: Array<{
+      y: number;
+      cells: Array<{ text: string; x: number }>;
+    }> = [];
+
+    for (const item of positioned) {
+      let row = rows.find(
+        (candidate) => Math.abs(candidate.y - item.y) <= 1.8
+      );
+
+      if (!row) {
+        row = {
+          y: item.y,
+          cells: [],
+        };
+
+        rows.push(row);
+      }
+
+      row.cells.push({
+        text: item.text,
+        x: item.x,
+      });
+    }
+
+    rows.sort((a, b) => b.y - a.y);
+
+    for (const row of rows) {
+      row.cells.sort((a, b) => a.x - b.x);
+
+      const line = row.cells
+        .map((cell) => cell.text)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      /*
+       * Ejemplo reconstruido:
+       * 1 1-041171 CHEVROLET S-10 2.8 CTDI 4x4 2013- 4 123723,10 494.892,40
+       */
+      const match = line.match(
+        /^\s*\d+\s+(1-\d{6})\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s+([\d.,]+)\s+([\d.,]+)\s*$/
+      );
+
+      if (!match) continue;
+
+      const supplierCode = normalizeCode(match[1]);
+      const description = cleanDescription(match[2]);
+      const quantity = parseQuantity(match[3]);
+
+      if (!supplierCode || !description || quantity <= 0) {
+        continue;
+      }
+
+      result.push({
+        supplierCode,
+        description,
+        quantity,
+      });
+    }
+  }
+
+  return consolidate(result);
+}
+
+/* =========================================================
    GENÉRICOS
    ========================================================= */
 
@@ -612,7 +780,7 @@ function parseGenericNumericTable(text: string): ParsedItem[] {
    SELECCIÓN AUTOMÁTICA
    ========================================================= */
 
-type KnownFormat = "ZF" | "VMG" | "SERRAT" | "CAPEMI";
+type KnownFormat = "ZF" | "VMG" | "SERRAT" | "CAPEMI" | "AG";
 
 type SelectedBrandHint = {
   erpId?: number;
@@ -675,6 +843,14 @@ function detectFormatFromSelectedBrands(
     return "CAPEMI";
   }
 
+  if (
+    names.includes("AG RESORTES") ||
+    names.includes("AG KIT PROGRESIVOS") ||
+    names.includes("ANICETO GOMEZ")
+  ) {
+    return "AG";
+  }
+
   return null;
 }
 
@@ -725,6 +901,15 @@ function detectFormatFromPdfText(text: string): KnownFormat | null {
     return "CAPEMI";
   }
 
+  if (
+    haystack.includes("ANICETO GOMEZ S.A.") ||
+    haystack.includes("WWW.AG.COM.AR") ||
+    haystack.includes("30-66138495-2") ||
+    haystack.includes("GRUPO AG")
+  ) {
+    return "AG";
+  }
+
   return null;
 }
 
@@ -741,6 +926,9 @@ function runKnownParser(format: KnownFormat, text: string): ParserResult {
 
     case "CAPEMI":
       return { parser: "CAPEMI", items: parseCapemi(text) };
+
+    case "AG":
+      return { parser: "AG", items: parseAg(text) };
   }
 }
 
@@ -816,6 +1004,7 @@ function parseInvoice(
     { parser: "VMG_FALLBACK", items: parseVmg(text) },
     { parser: "SERRAT_FALLBACK", items: parseSerrat(text) },
     { parser: "CAPEMI_FALLBACK", items: parseCapemi(text) },
+    { parser: "AG_FALLBACK", items: parseAg(text) },
   ];
 
   structuralFallbacks.sort((a, b) => b.items.length - a.items.length);
@@ -949,8 +1138,25 @@ export async function POST(request: Request) {
           items: parseSerrat(text),
         };
       }
+    } else if (
+      selectedFormat === "AG" ||
+      pdfDetectedFormat === "AG"
+    ) {
+      const agItems = await parseAgFromPdf(pdf);
+
+      if (agItems.length > 0) {
+        parsed = {
+          parser: "AG_GEOMETRIC",
+          items: agItems,
+        };
+      } else {
+        parsed = {
+          parser: "AG_TEXT_FALLBACK",
+          items: parseAg(text),
+        };
+      }
     } else {
-      // ZF y VMG siguen exactamente con la lógica que ya funciona.
+      // ZF, VMG y CAPEMI siguen exactamente con la lógica que ya funciona.
       parsed = parseInvoice(
         text,
         brandName,

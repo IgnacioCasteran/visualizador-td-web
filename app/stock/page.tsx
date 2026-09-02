@@ -148,7 +148,7 @@ function supplierCodeTailForBrand(prefix: string, supplierCode: string) {
 
   // Prefijo interno del proveedor: 01-, 02-, 03-, etc.
   // Lo removemos porque el prefijo TD lo aporta el selector.
-  const supplierInternalPrefix = normalized.match(/^\d{2}-(.+)$/);
+  const supplierInternalPrefix = normalized.match(/^\d{1,2}-(.+)$/);
 
   if (supplierInternalPrefix) {
     return supplierInternalPrefix[1].trim();
