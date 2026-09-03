@@ -208,13 +208,121 @@ function sanitizeFilename(value: string) {
     .trim();
 }
 
+/**
+ * Limpia cualquier texto antes de enviarlo a las fuentes estándar de pdf-lib.
+ *
+ * Helvetica/HelveticaBold/HelveticaOblique usan WinAnsi. Si llega un carácter
+ * corrupto (por ejemplo U+FFFD "�", controles como U+0090, emojis u otros
+ * símbolos no soportados), pdf-lib puede lanzar:
+ *
+ *   WinAnsi cannot encode "..."
+ *
+ * La función:
+ * - conserva los caracteres que la fuente realmente puede codificar
+ *   (incluidos á, é, í, ó, ú, ñ, Ñ, ü, etc.);
+ * - convierte saltos de línea y tabs en espacios;
+ * - elimina caracteres de control peligrosos;
+ * - reemplaza puntuación Unicode común por equivalentes seguros;
+ * - intenta transliterar un carácter no soportado;
+ * - como último recurso usa "?" para que el PDF nunca se caiga.
+ */
+function sanitizePdfText(
+  value: string | number | null | undefined,
+  font: PDFFont
+) {
+  const source = String(value ?? "").normalize("NFC");
+
+  const replacements: Record<string, string> = {
+    "\u00A0": " ",
+    "\u2018": "'",
+    "\u2019": "'",
+    "\u201A": "'",
+    "\u201B": "'",
+    "\u201C": '"',
+    "\u201D": '"',
+    "\u201E": '"',
+    "\u201F": '"',
+    "\u2013": "-",
+    "\u2014": "-",
+    "\u2212": "-",
+    "\u2026": "...",
+    "\u2022": "-",
+    "\u00AD": "",
+  };
+
+  const canEncode = (candidate: string) => {
+    if (!candidate) return true;
+
+    try {
+      font.widthOfTextAtSize(candidate, 10);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  let result = "";
+
+  for (const char of source) {
+    const codePoint = char.codePointAt(0) ?? 0;
+
+    // Espacios válidos provenientes de textos multilínea.
+    if (char === "\r" || char === "\n" || char === "\t") {
+      result += " ";
+      continue;
+    }
+
+    // U+FFFD = carácter de reemplazo: indica texto que ya llegó corrupto.
+    if (codePoint === 0xfffd) {
+      result += "?";
+      continue;
+    }
+
+    // Controles C0 y C1. Se descartan para impedir errores de codificación.
+    if (
+      (codePoint >= 0x00 && codePoint <= 0x1f) ||
+      (codePoint >= 0x7f && codePoint <= 0x9f)
+    ) {
+      continue;
+    }
+
+    const mapped = replacements[char] ?? char;
+
+    if (!mapped) {
+      continue;
+    }
+
+    if (canEncode(mapped)) {
+      result += mapped;
+      continue;
+    }
+
+    // Intenta convertir, por ejemplo, letras Unicode no disponibles
+    // a una variante latina simple antes de recurrir a "?".
+    const fallback = mapped
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+    if (fallback && canEncode(fallback)) {
+      result += fallback;
+      continue;
+    }
+
+    result += "?";
+  }
+
+  return result
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function fitText(
   text: string,
   font: PDFFont,
   fontSize: number,
   maxWidth: number
 ) {
-  const normalized = String(text ?? "").trim();
+  const normalized = sanitizePdfText(text, font);
 
   if (!normalized) return "";
 
@@ -240,8 +348,7 @@ function wrapText(
   fontSize: number,
   maxWidth: number
 ) {
-  const words = String(text ?? "")
-    .trim()
+  const words = sanitizePdfText(text, font)
     .split(/\s+/)
     .filter(Boolean);
 
@@ -487,10 +594,11 @@ export async function GET(
       maxWidth?: number
     ) => {
       const font = useBold ? bold : regular;
+      const safeText = sanitizePdfText(text, font);
       const value =
         maxWidth !== undefined
-          ? fitText(text, font, size, maxWidth)
-          : text;
+          ? fitText(safeText, font, size, maxWidth)
+          : safeText;
 
       page.drawText(value, {
         x,
@@ -509,12 +617,13 @@ export async function GET(
       useBold = false
     ) => {
       const font = useBold ? bold : regular;
+      const safeText = sanitizePdfText(text, font);
       const textWidth = font.widthOfTextAtSize(
-        text,
+        safeText,
         size
       );
 
-      page.drawText(text, {
+      page.drawText(safeText, {
         x: rightX - textWidth,
         y,
         size,
@@ -531,12 +640,13 @@ export async function GET(
       useBold = false
     ) => {
       const font = useBold ? bold : regular;
+      const safeText = sanitizePdfText(text, font);
       const textWidth = font.widthOfTextAtSize(
-        text,
+        safeText,
         size
       );
 
-      page.drawText(text, {
+      page.drawText(safeText, {
         x: centerX - textWidth / 2,
         y,
         size,
@@ -553,10 +663,11 @@ export async function GET(
       size = 9,
       maxWidth?: number
     ) => {
+      const safeText = sanitizePdfText(text, italic);
       const value =
         maxWidth !== undefined
-          ? fitText(text, italic, size, maxWidth)
-          : text;
+          ? fitText(safeText, italic, size, maxWidth)
+          : safeText;
 
       page.drawText(value, {
         x,
