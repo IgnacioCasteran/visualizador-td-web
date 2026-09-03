@@ -493,8 +493,7 @@ export async function GET(
     let y = PAGE_HEIGHT - MARGIN_TOP;
 
     function drawHeader(
-      targetPage: PDFPage,
-      continuation = false
+      targetPage: PDFPage
     ) {
       let headerY =
         PAGE_HEIGHT - MARGIN_TOP;
@@ -526,116 +525,111 @@ export async function GET(
         );
       }
 
+      // Repetimos exactamente el mismo membrete en todas las páginas.
       targetPage.drawText(
-        continuation
-          ? "Resumen de cuenta - continuacion"
-          : "Resumen de cuenta",
+        "Resumen de cuenta",
         {
           x: 285,
           y: headerY - 10,
-          size: continuation ? 11 : 15,
+          size: 15,
           font: bold,
         }
       );
 
-      if (!continuation) {
-        targetPage.drawText(
-          truncateText(
-            `${String(safeCustomer.erp_id).padStart(5, "0")} - ${customerName}`,
-            bold,
-            11,
-            270
-          ),
-          {
-            x: 285,
-            y: headerY - 30,
-            size: 11,
-            font: bold,
-          }
-        );
+      targetPage.drawText(
+        truncateText(
+          `${String(safeCustomer.erp_id).padStart(5, "0")} - ${customerName}`,
+          bold,
+          11,
+          270
+        ),
+        {
+          x: 285,
+          y: headerY - 30,
+          size: 11,
+          font: bold,
+        }
+      );
 
-        targetPage.drawText(
-          truncateText(
-            ascii(safeCustomer.address || "-"),
-            font,
-            8.5,
-            270
-          ),
-          {
-            x: 285,
-            y: headerY - 45,
-            size: 8.5,
-            font,
-          }
-        );
+      targetPage.drawText(
+        truncateText(
+          ascii(safeCustomer.address || "-"),
+          font,
+          8.5,
+          270
+        ),
+        {
+          x: 285,
+          y: headerY - 45,
+          size: 8.5,
+          font,
+        }
+      );
 
-        targetPage.drawText(
-          truncateText(
-            `${ascii(
-              safeCustomer.locality_name || "-"
-            )}   Zona: ${ascii(
-              safeCustomer.zone || "-"
-            )}`,
-            font,
-            8.5,
-            270
-          ),
-          {
-            x: 285,
-            y: headerY - 59,
-            size: 8.5,
-            font,
-          }
-        );
+      targetPage.drawText(
+        truncateText(
+          `${ascii(
+            safeCustomer.locality_name || "-"
+          )}   Zona: ${ascii(
+            safeCustomer.zone || "-"
+          )}`,
+          font,
+          8.5,
+          270
+        ),
+        {
+          x: 285,
+          y: headerY - 59,
+          size: 8.5,
+          font,
+        }
+      );
 
-        targetPage.drawText(
-          truncateText(
-            `CUIT: ${ascii(
-              safeCustomer.cuit || "-"
-            )}   ${ascii(
-              safeCustomer.fiscal_condition ||
-                ""
-            )}`,
-            font,
-            8.5,
-            270
-          ),
-          {
-            x: 285,
-            y: headerY - 73,
-            size: 8.5,
-            font,
-          }
-        );
+      targetPage.drawText(
+        truncateText(
+          `CUIT: ${ascii(
+            safeCustomer.cuit || "-"
+          )}   ${ascii(
+            safeCustomer.fiscal_condition ||
+              ""
+          )}`,
+          font,
+          8.5,
+          270
+        ),
+        {
+          x: 285,
+          y: headerY - 73,
+          size: 8.5,
+          font,
+        }
+      );
 
+      targetPage.drawText(
+        `${accountLabel} - ${periodLabel}`,
+        {
+          x: MARGIN_X,
+          y: headerY - 100,
+          size: 9.5,
+          font: bold,
+        }
+      );
+
+      if (mode === "range") {
         targetPage.drawText(
-          `${accountLabel} - ${periodLabel}`,
+          `Saldo anterior al periodo: ${ascii(
+            formatMoney(openingBalance)
+          )}`,
           {
             x: MARGIN_X,
-            y: headerY - 100,
-            size: 9.5,
-            font: bold,
+            y: headerY - 116,
+            size: 8.5,
+            font,
           }
         );
-
-        if (mode === "range") {
-          targetPage.drawText(
-            `Saldo anterior al periodo: ${ascii(
-              formatMoney(openingBalance)
-            )}`,
-            {
-              x: MARGIN_X,
-              y: headerY - 116,
-              size: 8.5,
-              font,
-            }
-          );
-        }
-
-        return headerY - 143;
       }
 
-      return headerY - 78;
+      return headerY - 143;
     }
 
     function drawTableHeader(
@@ -745,8 +739,7 @@ export async function GET(
           ]);
 
           y = drawHeader(
-            page,
-            true
+            page
           );
 
           y = drawTableHeader(
@@ -842,8 +835,7 @@ export async function GET(
       ]);
 
       y = drawHeader(
-        page,
-        true
+        page
       );
     }
 
