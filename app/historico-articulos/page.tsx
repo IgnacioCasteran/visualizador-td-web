@@ -7,12 +7,11 @@ import {
     useMemo,
     useState,
 } from "react";
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import LoadingOverlay from "@/components/LoadingOverlay";
+import AppNavbar from "@/components/AppNavbar";
 import NavigationLoadingLink from "@/components/NavigationLoadingLink";
-import LogoutButton from "@/components/LogoutButton";
 
 type ArticleHistoryRow = {
     movement_kind: "document" | "receipt";
@@ -1174,160 +1173,19 @@ function ArticleHistoryContent() {
                 text="Cargando movimientos..."
             />
 
-            <div className="h-1.5 w-full bg-red-700" />
-
-            <header className="border-b bg-white shadow-sm">
-                <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-                    <div className="flex min-w-0 items-center gap-4">
-                        <NavigationLoadingLink
-                            href="/clientes"
-                            loadingText="Volviendo a clientes..."
-                            className="flex h-16 w-40 shrink-0 items-center justify-center sm:h-20 sm:w-48"
-                        >
-                            <Image
-                                src="/logo.jpg"
-                                alt="La Casa del Tren Delantero"
-                                width={220}
-                                height={90}
-                                priority
-                                className="h-auto max-h-full w-auto object-contain"
-                            />
-                        </NavigationLoadingLink>
-
-                        <div className="hidden border-l border-gray-200 pl-4 sm:block">
-                            <h1 className="text-xl font-bold text-gray-900 lg:text-2xl">
-                                Histórico de artículos
-                            </h1>
-
-                            <p className="mt-1 text-sm text-gray-500">
-                                Consulta de ventas y movimientos sincronizados desde TD
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="hidden items-center gap-3 md:flex">
-                        <NavigationLoadingLink
-                            href="/clientes"
-                            loadingText="Volviendo a clientes..."
-                            className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-                        >
-                            Clientes
-                        </NavigationLoadingLink>
-
-                        <NavigationLoadingLink
-                            href="/stock"
-                            loadingText="Abriendo carga de stock..."
-                            className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-                        >
-                            Stock
-                        </NavigationLoadingLink>
-
-                        <LogoutButton />
-
-                        {loggedUsername && (
-                            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
-                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 text-sm font-extrabold uppercase text-red-700">
-                                    {loggedUsername.charAt(0)}
-                                </div>
-
-                                <div className="min-w-0">
-                                    <p className="text-[11px] font-medium leading-none text-gray-400">
-                                        Usuario
-                                    </p>
-
-                                    <p className="mt-1 max-w-[130px] truncate text-sm font-bold leading-none text-gray-900">
-                                        {loggedUsername}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2">
-                            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
-
-                            <div>
-                                <p className="text-xs font-medium text-gray-500">
-                                    Última sincronización
-                                </p>
-
-                                <p className="mt-0.5 whitespace-nowrap text-sm font-semibold text-gray-900">
-                                    {lastSync
-                                        ? formatDateTime(lastSync)
-                                        : "Sin información"}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </header>
+            <AppNavbar
+                active="historico"
+                title="Histórico de artículos"
+                subtitle="Consulta de ventas y movimientos sincronizados desde TD"
+                loggedUsername={loggedUsername}
+                lastSync={
+                    lastSync
+                        ? formatDateTime(lastSync)
+                        : null
+                }
+            />
 
             <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-                <div className="mb-6 sm:hidden">
-                    <h1 className="text-2xl font-bold text-gray-900">
-                        Histórico de artículos
-                    </h1>
-
-                    <p className="mt-1 text-sm text-gray-500">
-                        Buscá qué artículos se vendieron, a quién, cuándo y quién confeccionó el comprobante.
-                    </p>
-
-                    <div className="mt-4 grid gap-3">
-                        <div className="grid grid-cols-2 gap-3">
-                            <NavigationLoadingLink
-                                href="/clientes"
-                                loadingText="Volviendo a clientes..."
-                                className="flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 shadow-sm"
-                            >
-                                ← Clientes
-                            </NavigationLoadingLink>
-
-                            <LogoutButton />
-                        </div>
-
-                        <NavigationLoadingLink
-                            href="/stock"
-                            loadingText="Abriendo carga de stock..."
-                            className="flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 shadow-sm"
-                        >
-                            Carga de stock
-                        </NavigationLoadingLink>
-
-                        {loggedUsername && (
-                            <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-sm font-extrabold uppercase text-red-700">
-                                    {loggedUsername.charAt(0)}
-                                </div>
-
-                                <div className="min-w-0">
-                                    <p className="text-xs font-medium text-gray-500">
-                                        Usuario conectado
-                                    </p>
-
-                                    <p className="mt-0.5 truncate text-sm font-bold text-gray-900">
-                                        {loggedUsername}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-                            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
-
-                            <div>
-                                <p className="text-xs font-medium text-gray-500">
-                                    Última sincronización
-                                </p>
-
-                                <p className="mt-0.5 text-sm font-semibold text-gray-900">
-                                    {lastSync
-                                        ? formatDateTime(lastSync)
-                                        : "Sin información"}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <section className="mb-6 overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
                     <div className="border-b border-gray-100 px-5 py-4">
                         <div className="flex items-center gap-3">

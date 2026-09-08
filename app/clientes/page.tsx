@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import { supabase } from "@/lib/supabase/client";
+import AppNavbar from "@/components/AppNavbar";
 import NavigationLoadingLink from "@/components/NavigationLoadingLink";
-import LogoutButton from "@/components/LogoutButton";
 
 type Customer = {
   erp_id: number;
@@ -63,6 +62,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [loggedUsername, setLoggedUsername] = useState("");
 
   /*
    * =========================================================
@@ -73,6 +73,7 @@ export default function Home() {
   useEffect(() => {
     loadZones();
     loadLastSync();
+    loadLoggedUser();
   }, []);
 
   /*
@@ -130,6 +131,39 @@ export default function Home() {
     } else {
       setLastSync(null);
     }
+  }
+
+  async function loadLoggedUser() {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error || !user) {
+      if (error) {
+        console.error(
+          "Error obteniendo usuario logueado:",
+          error
+        );
+      }
+
+      setLoggedUsername("");
+      return;
+    }
+
+    const metadataName =
+      typeof user.user_metadata?.name === "string"
+        ? user.user_metadata.name.trim()
+        : "";
+
+    const emailUsername =
+      user.email?.split("@")[0] ?? "";
+
+    setLoggedUsername(
+      metadataName ||
+        emailUsername ||
+        "Usuario"
+    );
   }
 
   /*
@@ -372,84 +406,17 @@ export default function Home() {
     <main className="min-h-screen bg-slate-50 text-gray-900">
       {/* BARRA ROJA */}
 
-      <div className="h-1.5 w-full bg-red-700" />
-
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-
-      <header className="border-b bg-white shadow-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-4">
-            {/* LOGO */}
-
-            <div className="flex h-16 w-40 shrink-0 items-center justify-center sm:h-20 sm:w-48">
-              <Image
-                src="/logo.jpg"
-                alt="La Casa del Tren Delantero"
-                width={220}
-                height={90}
-                priority
-                className="h-auto max-h-full w-auto object-contain"
-              />
-            </div>
-
-            {/* TÍTULO */}
-
-            <div className="hidden border-l border-gray-200 pl-4 sm:block">
-              <h1 className="text-xl font-bold text-gray-900 lg:text-2xl">
-                Visualizador de clientes
-              </h1>
-
-              <p className="mt-1 text-sm text-gray-500">
-                Información sincronizada desde TD
-              </p>
-            </div>
-          </div>
-
-          <div className="hidden items-center gap-3 md:flex">
-            <NavigationLoadingLink
-              href="/historico-articulos"
-              loadingText="Abriendo histórico..."
-              className="inline-flex items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 shadow-sm transition hover:border-red-700 hover:bg-red-700 hover:text-white"
-            >
-              Histórico de artículos
-            </NavigationLoadingLink>
-
-            <NavigationLoadingLink
-              href="/stock"
-              loadingText="Abriendo carga de stock..."
-              className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-            >
-              Stock
-            </NavigationLoadingLink>
-
-            <LogoutButton />
-
-            {/* =================================================
-                ÚLTIMA SINCRONIZACIÓN
-            ================================================= */}
-
-            <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
-
-            <div>
-              <p className="text-xs font-medium text-gray-500">
-                Última sincronización
-              </p>
-
-              <p className="mt-0.5 whitespace-nowrap text-sm font-semibold text-gray-900">
-                {lastSync
-                  ? formatDateTime(
-                      lastSync
-                    )
-                  : "Sin información"}
-              </p>
-            </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppNavbar
+        active="clientes"
+        title="Visualizador de clientes"
+        subtitle="Información sincronizada desde TD"
+        loggedUsername={loggedUsername}
+        lastSync={
+          lastSync
+            ? formatDateTime(lastSync)
+            : null
+        }
+      />
 
       {/* =====================================================
           CONTENIDO
@@ -457,66 +424,6 @@ export default function Home() {
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         {/* MOBILE TITLE */}
-
-        <div className="mb-6 sm:hidden">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Visualizador de clientes
-          </h1>
-
-          <p className="mt-1 text-sm text-gray-500">
-            Consulta de clientes sincronizados desde el ERP
-          </p>
-
-          {/* ÚLTIMA SINCRONIZACIÓN MOBILE */}
-
-          <div className="mt-4 flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm md:hidden">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
-
-            <div>
-              <p className="text-xs font-medium text-gray-500">
-                Última sincronización
-              </p>
-
-              <p className="mt-0.5 text-sm font-semibold text-gray-900">
-                {lastSync
-                  ? formatDateTime(
-                      lastSync
-                    )
-                  : "Sin información"}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mb-6 md:hidden">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <NavigationLoadingLink
-              href="/historico-articulos"
-              loadingText="Abriendo histórico..."
-              className="flex w-full items-center justify-between rounded-2xl border border-red-200 bg-red-50 px-5 py-4 font-bold text-red-700 shadow-sm transition active:bg-red-100"
-            >
-              <span>Histórico de artículos</span>
-              <span aria-hidden="true" className="text-lg">
-                →
-              </span>
-            </NavigationLoadingLink>
-
-            <NavigationLoadingLink
-              href="/stock"
-              loadingText="Abriendo carga de stock..."
-              className="flex w-full items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 font-bold text-gray-700 shadow-sm transition active:bg-gray-50"
-            >
-              <span>Carga de stock</span>
-              <span aria-hidden="true" className="text-lg">→</span>
-            </NavigationLoadingLink>
-
-            <LogoutButton />
-          </div>
-        </div>
-
-        {/* ===================================================
-            FILTROS
-        =================================================== */}
 
         <section className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-5 py-4">

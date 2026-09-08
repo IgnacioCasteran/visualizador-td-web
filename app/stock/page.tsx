@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -14,8 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
-import NavigationLoadingLink from "@/components/NavigationLoadingLink";
-import LogoutButton from "@/components/LogoutButton";
+import AppNavbar from "@/components/AppNavbar";
 
 type Brand = {
   erp_id: number;
@@ -217,6 +215,12 @@ export default function StockPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [invoiceProcessSummary, setInvoiceProcessSummary] = useState<{
+    total: number;
+    recognized: number;
+    missing: number;
+  } | null>(null);
+
   const selectedBrands = useMemo(
     () =>
       selectedBrandIds
@@ -372,6 +376,7 @@ export default function StockPage() {
     closeManual();
     setError(null);
     setMessage(null);
+    setInvoiceProcessSummary(null);
   }
 
   function handleBrandChange(slotIndex: number, value: string) {
@@ -439,6 +444,7 @@ export default function StockPage() {
     setProcessingPdf(true);
     setError(null);
     setMessage(null);
+    setInvoiceProcessSummary(null);
 
     try {
       const formData = new FormData();
@@ -491,15 +497,24 @@ export default function StockPage() {
       const resolved = await resolveItems(parsed.items);
       setResolvedItems(resolved);
 
-      const missing = resolved.filter((item) => item.status === "missing").length;
+      const missing = resolved.filter(
+        (item) => item.status === "missing"
+      ).length;
+
+      const recognized =
+        resolved.length - missing;
+
+      setInvoiceProcessSummary({
+        total: resolved.length,
+        recognized,
+        missing,
+      });
 
       if (missing === 0) {
-        setMessage(
-          `Factura procesada: ${resolved.length} artículo(s) reconocidos automáticamente.`
-        );
+        setMessage(null);
       } else {
         setError(
-          `Factura procesada. Se reconocieron ${resolved.length - missing} artículo(s) y ${missing} necesitan revisión manual.`
+          `Hay ${missing} artículo(s) que necesitan revisión manual.`
         );
       }
     } catch (processError) {
@@ -828,8 +843,13 @@ export default function StockPage() {
        * No agregamos descripción, marca ni columnas auxiliares para no alterar
        * el formato de importación.
        */
-      const worksheet = XLSX.utils.json_to_sheet(rows, {
-        header: ["Codigo", "Cantidad"],
+      const exportRows = rows.map((row) => ({
+        codigo: row.Codigo,
+        cantidad: row.Cantidad,
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(exportRows, {
+        header: ["codigo", "cantidad"],
       });
 
       // Forzamos Código como texto para conservar guiones y espacios.
@@ -855,7 +875,7 @@ export default function StockPage() {
       ];
 
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Stock");
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Hoja1");
 
       XLSX.writeFile(workbook, "Stock.xlsx", {
         compression: true,
@@ -907,85 +927,17 @@ export default function StockPage() {
 
   return (
     <main className="min-h-screen bg-slate-50 text-gray-900">
-      <div className="h-1.5 w-full bg-red-700" />
-
-      <header className="border-b bg-white shadow-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-4">
-            <NavigationLoadingLink
-              href="/clientes"
-              loadingText="Volviendo a clientes..."
-              className="flex h-16 w-40 shrink-0 items-center justify-center sm:h-20 sm:w-48"
-            >
-              <Image
-                src="/logo.jpg"
-                alt="La Casa del Tren Delantero"
-                width={220}
-                height={90}
-                priority
-                className="h-auto max-h-full w-auto object-contain"
-              />
-            </NavigationLoadingLink>
-
-            <div className="hidden border-l border-gray-200 pl-4 sm:block">
-              <h1 className="text-xl font-bold text-gray-900 lg:text-2xl">
-                Carga de stock
-              </h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Elegí la marca, subí la factura y revisá solo lo que no coincida.
-              </p>
-            </div>
-          </div>
-
-          <div className="hidden items-center gap-3 md:flex">
-            <NavigationLoadingLink
-              href="/historico-articulos"
-              loadingText="Abriendo histórico..."
-              className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-            >
-              Histórico
-            </NavigationLoadingLink>
-
-            <NavigationLoadingLink
-              href="/clientes"
-              loadingText="Volviendo a clientes..."
-              className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-            >
-              Clientes
-            </NavigationLoadingLink>
-
-            <LogoutButton />
-
-            {loggedUsername && (
-              <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-sm font-extrabold uppercase text-red-700">
-                  {loggedUsername.charAt(0)}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-medium leading-none text-gray-400">
-                    Usuario
-                  </p>
-                  <p className="mt-1 max-w-[130px] truncate text-sm font-bold leading-none text-gray-900">
-                    {loggedUsername}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
-              <div>
-                <p className="text-xs font-medium text-gray-500">
-                  Última sincronización
-                </p>
-                <p className="mt-0.5 whitespace-nowrap text-sm font-semibold text-gray-900">
-                  {lastSync ? formatDateTime(lastSync) : "Sin información"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppNavbar
+        active="stock"
+        title="Carga de stock"
+        subtitle="Elegí la marca, subí la factura y revisá solo lo que no coincida."
+        loggedUsername={loggedUsername}
+        lastSync={
+          lastSync
+            ? formatDateTime(lastSync)
+            : null
+        }
+      />
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         {(error || message) && (
@@ -1477,6 +1429,117 @@ export default function StockPage() {
           </div>
         </section>
       </div>
+
+      {invoiceProcessSummary && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="invoice-process-title"
+        >
+          <div
+            className={`w-full max-w-md rounded-3xl border bg-white p-6 shadow-2xl sm:p-7 ${
+              invoiceProcessSummary.missing === 0
+                ? "border-green-200"
+                : "border-amber-200"
+            }`}
+          >
+            <div className="flex flex-col items-center text-center">
+              <div
+                className={`flex h-16 w-16 items-center justify-center rounded-full ${
+                  invoiceProcessSummary.missing === 0
+                    ? "bg-green-100"
+                    : "bg-amber-100"
+                }`}
+              >
+                {invoiceProcessSummary.missing === 0 ? (
+                  <CheckCircle2
+                    className="h-9 w-9 text-green-700"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <AlertTriangle
+                    className="h-9 w-9 text-amber-700"
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+
+              <h2
+                id="invoice-process-title"
+                className="mt-4 text-xl font-extrabold text-gray-900 sm:text-2xl"
+              >
+                {invoiceProcessSummary.missing === 0
+                  ? "Factura procesada correctamente"
+                  : "Factura procesada con pendientes"}
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-gray-600 sm:text-base">
+                {invoiceProcessSummary.missing === 0
+                  ? "Todos los artículos fueron reconocidos automáticamente."
+                  : "La factura terminó de procesarse, pero hay artículos que necesitan revisión manual."}
+              </p>
+
+              <div className="mt-5 grid w-full grid-cols-3 gap-3">
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-4">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                    Total
+                  </p>
+                  <p className="mt-1 text-2xl font-extrabold text-gray-900">
+                    {invoiceProcessSummary.total}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-green-200 bg-green-50 px-3 py-4">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-green-700">
+                    Reconocidos
+                  </p>
+                  <p className="mt-1 text-2xl font-extrabold text-green-800">
+                    {invoiceProcessSummary.recognized}
+                  </p>
+                </div>
+
+                <div
+                  className={`rounded-2xl border px-3 py-4 ${
+                    invoiceProcessSummary.missing === 0
+                      ? "border-gray-200 bg-gray-50"
+                      : "border-amber-200 bg-amber-50"
+                  }`}
+                >
+                  <p
+                    className={`text-[11px] font-bold uppercase tracking-wide ${
+                      invoiceProcessSummary.missing === 0
+                        ? "text-gray-500"
+                        : "text-amber-700"
+                    }`}
+                  >
+                    Pendientes
+                  </p>
+                  <p
+                    className={`mt-1 text-2xl font-extrabold ${
+                      invoiceProcessSummary.missing === 0
+                        ? "text-gray-900"
+                        : "text-amber-800"
+                    }`}
+                  >
+                    {invoiceProcessSummary.missing}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setInvoiceProcessSummary(null)
+                }
+                className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto sm:min-w-[180px]"
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
