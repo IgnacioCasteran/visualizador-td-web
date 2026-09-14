@@ -26,6 +26,7 @@ function formatDateTime(
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: "America/Argentina/Buenos_Aires",
   }).format(new Date(value));
 }
 

@@ -43,6 +43,7 @@ function formatDate(
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: "America/Argentina/Buenos_Aires",
   }).format(new Date(value));
 }
 
@@ -58,6 +59,7 @@ function formatDateTime(
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: "America/Argentina/Buenos_Aires",
   }).format(new Date(value));
 }
 
