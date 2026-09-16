@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import AppNavbar from "@/components/AppNavbar";
 import NavigationLoadingLink from "@/components/NavigationLoadingLink";
+import ZoneAccountSummaryButton from "@/components/ZoneAccountSummaryButton";
 
 type Customer = {
   erp_id: number;
@@ -427,18 +428,25 @@ export default function Home() {
 
         <section className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="h-6 w-1 rounded-full bg-red-700" />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-6 w-1 rounded-full bg-red-700" />
 
-              <div>
-                <h2 className="font-semibold text-gray-900">
-                  Buscar clientes
-                </h2>
+                <div>
+                  <h2 className="font-semibold text-gray-900">
+                    Buscar clientes
+                  </h2>
 
-                <p className="text-sm text-gray-500">
-                  Buscá por nombre, código, CUIT, localidad o zona
-                </p>
+                  <p className="text-sm text-gray-500">
+                    Buscá por nombre, código, CUIT, localidad o zona
+                  </p>
+                </div>
               </div>
+
+              <ZoneAccountSummaryButton
+                zones={zones}
+                disabled={zonesLoading}
+              />
             </div>
           </div>
 
