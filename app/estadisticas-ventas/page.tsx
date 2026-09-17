@@ -1367,10 +1367,21 @@ export default function SalesStatisticsPage() {
                 ? `_Cliente_${appliedCustomerId}`
                 : "";
 
-        const brandPart =
+        const selectedBrandForExport =
             appliedBrandFilter !== "all"
-                ? `_Familia_${appliedBrandFilter}`
-                : "";
+                ? brands.find(
+                      (brand) =>
+                          String(brand.erp_id) ===
+                          appliedBrandFilter
+                  )
+                : null;
+
+        const brandPart =
+            selectedBrandForExport?.prefix
+                ? `_Familia_${selectedBrandForExport.prefix}`
+                : appliedBrandFilter !== "all"
+                  ? `_Familia_${appliedBrandFilter}`
+                  : "";
 
         const zonePart =
             appliedZoneFilter !== "all"
