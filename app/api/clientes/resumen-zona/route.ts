@@ -40,6 +40,13 @@ type Movement = {
 type InvoiceRow = {
   erp_id: number;
   number: number | string | null;
+  observations: string | null;
+};
+
+type ReceiptRow = {
+  erp_id: number;
+  number: number | string | null;
+  observations: string | null;
 };
 
 type PdfRow = {
@@ -354,41 +361,93 @@ export async function GET(request: NextRequest) {
     );
 
     const invoiceRows: InvoiceRow[] = [];
+    const receiptRows: ReceiptRow[] = [];
 
     for (const idChunk of chunkArray(documentIds, 500)) {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("erp_id,number")
-        .in("erp_id", idChunk);
+      const [
+        { data: invoiceData, error: invoiceError },
+        { data: receiptData, error: receiptError },
+      ] = await Promise.all([
+        supabase
+          .from("invoices")
+          .select("erp_id,number,observations")
+          .in("erp_id", idChunk),
+        supabase
+          .from("receipts")
+          .select("erp_id,number,observations")
+          .in("erp_id", idChunk),
+      ]);
 
-      if (!error) {
-        invoiceRows.push(...((data ?? []) as InvoiceRow[]));
+      if (!invoiceError) {
+        invoiceRows.push(...((invoiceData ?? []) as InvoiceRow[]));
+      }
+
+      if (!receiptError) {
+        receiptRows.push(...((receiptData ?? []) as ReceiptRow[]));
       }
     }
 
-    const invoiceMap = new Map<number, number | string | null>();
+    const invoiceMap = new Map<number, InvoiceRow>();
     for (const invoice of invoiceRows) {
-      invoiceMap.set(Number(invoice.erp_id), invoice.number);
+      invoiceMap.set(Number(invoice.erp_id), invoice);
+    }
+
+    const receiptMap = new Map<number, ReceiptRow>();
+    for (const receipt of receiptRows) {
+      receiptMap.set(Number(receipt.erp_id), receipt);
+    }
+
+    function isReceiptMovement(movement: Movement) {
+      const type = Number(movement.document_type);
+      return type === 20 || type === 67;
     }
 
     function getDocumentNumber(movement: Movement) {
       const prefix = getDocumentPrefix(movement.document_type);
-      const number =
+
+      const documentId =
         movement.document_id !== null && movement.document_id !== undefined
-          ? invoiceMap.get(Number(movement.document_id))
+          ? Number(movement.document_id)
           : null;
+
+      let number: number | string | null | undefined = null;
+
+      if (documentId !== null && Number.isFinite(documentId)) {
+        number = isReceiptMovement(movement)
+          ? receiptMap.get(documentId)?.number
+          : invoiceMap.get(documentId)?.number;
+      }
 
       if (number !== null && number !== undefined) {
         return prefix ? `${prefix}-${number}` : String(number);
       }
 
-      if (movement.document_id !== null && movement.document_id !== undefined) {
-        return prefix
-          ? `${prefix}-${movement.document_id}`
-          : String(movement.document_id);
+      if (documentId !== null) {
+        return prefix ? `${prefix}-${documentId}` : String(documentId);
       }
 
       return prefix || "-";
+    }
+
+    function getDocumentObservations(movement: Movement) {
+      if (
+        movement.document_id === null ||
+        movement.document_id === undefined
+      ) {
+        return "";
+      }
+
+      const documentId = Number(movement.document_id);
+
+      if (!Number.isFinite(documentId)) {
+        return "";
+      }
+
+      const observation = isReceiptMovement(movement)
+        ? receiptMap.get(documentId)?.observations
+        : invoiceMap.get(documentId)?.observations;
+
+      return String(observation ?? "").trim();
     }
 
     const periodLabel =
@@ -447,7 +506,7 @@ export async function GET(request: NextRequest) {
           return {
             date: formatDateTime(movement.registered_at),
             document: getDocumentNumber(movement),
-            observations: "",
+            observations: getDocumentObservations(movement),
             debit,
             credit,
             balance: runningBalance,

@@ -33,6 +33,13 @@ type Movement = {
 type InvoiceRow = {
   erp_id: number;
   number: number | string | null;
+  observations: string | null;
+};
+
+type ReceiptRow = {
+  erp_id: number;
+  number: number | string | null;
+  observations: string | null;
 };
 
 const WHITE_DOCUMENT_TYPES = [1, 2, 6, 20];
@@ -332,35 +339,72 @@ export async function GET(
     );
 
     let invoiceRows: InvoiceRow[] = [];
+    let receiptRows: ReceiptRow[] = [];
 
     if (documentIds.length > 0) {
-      const {
-        data: invoiceData,
-        error: invoiceError,
-      } = await supabase
-        .from("invoices")
-        .select(`
-          erp_id,
-          number
-        `)
-        .in("erp_id", documentIds);
+      const [
+        { data: invoiceData, error: invoiceError },
+        { data: receiptData, error: receiptError },
+      ] = await Promise.all([
+        supabase
+          .from("invoices")
+          .select(`
+            erp_id,
+            number,
+            observations
+          `)
+          .in("erp_id", documentIds),
+        supabase
+          .from("receipts")
+          .select(`
+            erp_id,
+            number,
+            observations
+          `)
+          .in("erp_id", documentIds),
+      ]);
 
       if (!invoiceError) {
         invoiceRows =
           (invoiceData ?? []) as InvoiceRow[];
       }
+
+      if (!receiptError) {
+        receiptRows =
+          (receiptData ?? []) as ReceiptRow[];
+      }
     }
 
     const invoiceMap = new Map<
       number,
-      number | string | null
+      InvoiceRow
     >();
 
     for (const invoice of invoiceRows) {
       invoiceMap.set(
         Number(invoice.erp_id),
-        invoice.number
+        invoice
       );
+    }
+
+    const receiptMap = new Map<
+      number,
+      ReceiptRow
+    >();
+
+    for (const receipt of receiptRows) {
+      receiptMap.set(
+        Number(receipt.erp_id),
+        receipt
+      );
+    }
+
+    function isReceiptMovement(
+      movement: Movement
+    ) {
+      const type = Number(movement.document_type);
+
+      return type === 20 || type === 67;
     }
 
     function getDocumentNumber(
@@ -370,13 +414,26 @@ export async function GET(
         movement.document_type
       );
 
-      const number =
+      const documentId =
         movement.document_id !== null &&
         movement.document_id !== undefined
-          ? invoiceMap.get(
-              Number(movement.document_id)
-            )
+          ? Number(movement.document_id)
           : null;
+
+      let number:
+        | number
+        | string
+        | null
+        | undefined = null;
+
+      if (
+        documentId !== null &&
+        Number.isFinite(documentId)
+      ) {
+        number = isReceiptMovement(movement)
+          ? receiptMap.get(documentId)?.number
+          : invoiceMap.get(documentId)?.number;
+      }
 
       if (
         number !== null &&
@@ -387,16 +444,38 @@ export async function GET(
           : String(number);
       }
 
-      if (
-        movement.document_id !== null &&
-        movement.document_id !== undefined
-      ) {
+      if (documentId !== null) {
         return prefix
-          ? `${prefix}-${movement.document_id}`
-          : String(movement.document_id);
+          ? `${prefix}-${documentId}`
+          : String(documentId);
       }
 
       return prefix || "-";
+    }
+
+    function getDocumentObservations(
+      movement: Movement
+    ) {
+      if (
+        movement.document_id === null ||
+        movement.document_id === undefined
+      ) {
+        return "";
+      }
+
+      const documentId =
+        Number(movement.document_id);
+
+      if (!Number.isFinite(documentId)) {
+        return "";
+      }
+
+      const observation =
+        isReceiptMovement(movement)
+          ? receiptMap.get(documentId)?.observations
+          : invoiceMap.get(documentId)?.observations;
+
+      return String(observation ?? "").trim();
     }
 
     let runningBalance = openingBalance;
@@ -419,7 +498,8 @@ export async function GET(
           ),
           document:
             getDocumentNumber(movement),
-          observations: "",
+          observations:
+            getDocumentObservations(movement),
           debit,
           credit,
           balance: runningBalance,
