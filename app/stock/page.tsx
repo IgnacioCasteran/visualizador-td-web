@@ -319,7 +319,12 @@ export default function StockPage() {
         ? user.user_metadata.name.trim()
         : "";
 
-    setLoggedUsername(metadataName || user.email || "Usuario");
+    const emailUsername =
+      user.email?.split("@")[0]?.trim() || "";
+
+    setLoggedUsername(
+      metadataName || emailUsername || "Usuario"
+    );
   }
 
   async function loadBrands() {
