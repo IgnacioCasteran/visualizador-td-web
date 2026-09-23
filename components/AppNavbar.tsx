@@ -147,11 +147,11 @@ export default function AppNavbar({
 
                             {/* SINCRONIZACIÓN */}
                             <div className="hidden shrink-0 items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 2xl:flex">
-                                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
+                                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${lastSync ? "bg-green-500" : "bg-gray-400"}`} />
 
                                 <div>
                                     <p className="whitespace-nowrap text-[11px] font-medium text-gray-500">
-                                        Última sincronización
+                                        Última sincronización exitosa
                                     </p>
 
                                     <p className="mt-0.5 whitespace-nowrap text-sm font-bold text-gray-900">
@@ -234,7 +234,7 @@ export default function AppNavbar({
                             )}
 
                             <div className="flex shrink-0 items-center gap-2 text-xs text-gray-600">
-                                <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
+                                <span className={`h-2.5 w-2.5 rounded-full ${lastSync ? "bg-green-500" : "bg-gray-400"}`} />
                                 <span>
                                     {lastSync ||
                                         "Sin información"}
@@ -316,7 +316,7 @@ export default function AppNavbar({
                             )}
 
                             <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
-                                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
+                                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${lastSync ? "bg-green-500" : "bg-gray-400"}`} />
 
                                 <span className="text-xs font-medium text-gray-600">
                                     {lastSync ||
