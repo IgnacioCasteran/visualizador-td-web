@@ -1099,329 +1099,237 @@ async function parseSerratFromPdf(pdf: any): Promise<ParsedItem[]> {
 
 
 /**
-
  * Formato real de la factura AG:
-
  *
-
- * 1  1-041171  CHEVROLET S-10 2.8 CTDI 4x4 2013-  4  123723,10  494.892,40
-
- * 2  1-213142  Renault Kangoo Furgon 2018 Del      4   74584,90  298.339,60
-
+ * 1  1-041171   CHEVROLET S-10 ...                    4  123723,10  494.892,40
+ * 1  4-235085W  TOYOTA Hilux 3.0 OffRoad 1996-2015   2  158910,54  317.821,08
+ * 4  1-071125R  FIAT Palio Weekend ...                4  103684,64  10% 373.264,70
  *
-
- * El código de proveedor es "1-XXXXXX".
-
- * El prefijo TD NO se decide acá: lo aporta el selector de familias
-
- * (por ejemplo 01- AG RESORTES o 81- AG KIT PROGRESIVOS).
-
+ * IMPORTANTE:
+ * - AG no usa únicamente códigos "1-XXXXXX".
+ * - Puede traer otros prefijos internos (ej. 4-...) y sufijos con letras.
+ * - Algunas facturas agregan columna de descuento (ej. 10%).
+ * - La descripción puede continuar en una segunda línea.
+ *
+ * El prefijo TD NO se decide acá: lo aporta el selector de familias.
  */
-
 function parseAg(text: string): ParsedItem[] {
-
   const items: ParsedItem[] = [];
 
-
-
   const flat = text
-
     .replace(/\r/g, " ")
-
     .replace(/\n/g, " ")
-
     .replace(/\s+/g, " ")
-
     .trim();
 
-
+  const agCode = String.raw`\d{1,2}-[A-Z0-9]+`;
 
   /*
-
-   * Buscamos cada renglón por:
-
-   * número de ítem + código 1-XXXXXX + descripción + cantidad + precio + total.
-
-   *
-
-   * La descripción puede tener palabras/números y el PDF puede meter saltos,
-
-   * por eso trabajamos sobre texto aplanado.
-
+   * Fallback textual.
+   * Soporta:
+   *   item + código + descripción + cantidad + precio + total
+   *   item + código + descripción + cantidad + precio + descuento% + total
    */
-
-  const rowRegex =
-
-    /\b\d+\s+(1-\d{6})\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s+([\d.,]+)\s+([\d.,]+)(?=\s+\d+\s+1-\d{6}\b|\s+TOTAL\b|\s+INDICADOR\b|\s+PERC\b|\s+IVA[_\s]|$)/gi;
-
-
+  const rowRegex = new RegExp(
+    String.raw`\b\d+\s+(${agCode})\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s+([\d.,]+)\s+(?:\d+(?:[.,]\d+)?%\s+)?([\d.,]+)(?=\s+\d+\s+${agCode}\b|\s+TOTAL\b|\s+INDICADOR\b|\s+PERC\b|\s+IVA[_\s]|$)`,
+    "gi"
+  );
 
   for (const match of flat.matchAll(rowRegex)) {
-
     const supplierCode = normalizeCode(match[1]);
-
     const description = cleanDescription(match[2]);
-
     const quantity = parseQuantity(match[3]);
 
-
-
     if (!supplierCode || !description || quantity <= 0) {
-
       continue;
-
     }
-
-
 
     items.push({
-
       supplierCode,
-
       description,
-
       quantity,
-
     });
-
   }
 
-
-
   return consolidate(items);
-
 }
 
-
-
 /**
-
  * AG - lector geométrico.
-
  *
-
- * SAP Business One puede entregar el texto en un orden distinto al visual
-
- * (especialmente cuando la descripción ocupa dos líneas). Para AG usamos
-
- * primero las coordenadas del PDF y reconstruimos cada fila izquierda->derecha.
-
+ * Para AG tomamos las coordenadas reales del PDF y leemos por columnas.
+ * Esto evita depender del orden en que unpdf concatena el texto.
  *
-
+ * Soporta:
+ * - códigos 1-072213, 4-235085W, 1-071125R, 1-251047TP, etc.;
+ * - columna opcional "Desc" (10%);
+ * - descripciones que continúan en una segunda línea.
+ *
  * Esto SOLO se ejecuta para AG y no modifica ZF, VMG, SERRAT ni CAPEMI.
-
  */
-
 async function parseAgFromPdf(pdf: any): Promise<ParsedItem[]> {
-
   const result: ParsedItem[] = [];
-
   const pageCount = Number(pdf?.numPages ?? 0);
 
-
+  const codeRegex = /^\d{1,2}-[A-Z0-9]+$/i;
+  const itemRegex = /^\d+$/;
+  const quantityRegex = /^\d+(?:[.,]\d+)?$/;
 
   for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
-
     const page = await pdf.getPage(pageNumber);
-
     const content = await page.getTextContent();
 
-
-
     const positioned = (content.items ?? [])
-
       .map((item: any) => {
-
         const transform = Array.isArray(item?.transform)
-
           ? item.transform
-
           : [];
 
-
-
         return {
-
           text: String(item?.str ?? "").replace(/\s+/g, " ").trim(),
-
           x: Number(transform[4] ?? 0),
-
           y: Number(transform[5] ?? 0),
-
         };
-
       })
-
       .filter(
-
         (item: { text: string; x: number; y: number }) =>
-
           item.text &&
-
           Number.isFinite(item.x) &&
-
           Number.isFinite(item.y)
-
       );
-
-
 
     positioned.sort(
-
       (
-
         a: { text: string; x: number; y: number },
-
         b: { text: string; x: number; y: number }
-
       ) => {
-
         const yDiff = b.y - a.y;
 
-
-
         if (Math.abs(yDiff) > 1.5) {
-
           return yDiff;
-
         }
 
-
-
         return a.x - b.x;
-
       }
-
     );
 
-
-
     const rows: Array<{
-
       y: number;
-
       cells: Array<{ text: string; x: number }>;
-
     }> = [];
 
-
-
     for (const item of positioned) {
-
       let row = rows.find(
-
         (candidate) => Math.abs(candidate.y - item.y) <= 1.8
-
       );
 
-
-
       if (!row) {
-
         row = {
-
           y: item.y,
-
           cells: [],
-
         };
 
-
-
         rows.push(row);
-
       }
 
-
-
       row.cells.push({
-
         text: item.text,
-
         x: item.x,
-
       });
-
     }
-
-
 
     rows.sort((a, b) => b.y - a.y);
 
-
+    let lastInsertedIndex: number | null = null;
+    let lastItemRowY: number | null = null;
 
     for (const row of rows) {
-
       row.cells.sort((a, b) => a.x - b.x);
 
-
-
-      const line = row.cells
-
-        .map((cell) => cell.text)
-
-        .join(" ")
-
-        .replace(/\s+/g, " ")
-
-        .trim();
-
-
-
-      /*
-
-       * Ejemplo reconstruido:
-
-       * 1 1-041171 CHEVROLET S-10 2.8 CTDI 4x4 2013- 4 123723,10 494.892,40
-
-       */
-
-      const match = line.match(
-
-        /^\s*\d+\s+(1-\d{6})\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s+([\d.,]+)\s+([\d.,]+)\s*$/
-
+      const itemCell = row.cells.find(
+        (cell) => cell.x < 25 && itemRegex.test(cell.text)
       );
 
+      const codeCell = row.cells.find(
+        (cell) =>
+          cell.x >= 20 &&
+          cell.x < 100 &&
+          codeRegex.test(cell.text)
+      );
 
+      const quantityCell = row.cells.find(
+        (cell) =>
+          cell.x >= 395 &&
+          cell.x < 445 &&
+          quantityRegex.test(cell.text)
+      );
 
-      if (!match) continue;
+      /*
+       * Descripción visual de AG:
+       * empieza aproximadamente en x=103 y termina antes de Cantidad.
+       * "Despacho" está en esa zona pero en estas facturas viene vacío.
+       */
+      const description = cleanDescription(
+        row.cells
+          .filter((cell) => cell.x >= 90 && cell.x < 395)
+          .map((cell) => cell.text)
+          .join(" ")
+      );
 
+      if (itemCell && codeCell && quantityCell) {
+        const quantity = parseQuantity(quantityCell.text);
 
+        if (!description || quantity <= 0) {
+          lastInsertedIndex = null;
+          continue;
+        }
 
-      const supplierCode = normalizeCode(match[1]);
+        result.push({
+          supplierCode: normalizeCode(codeCell.text),
+          description,
+          quantity,
+        });
 
-      const description = cleanDescription(match[2]);
-
-      const quantity = parseQuantity(match[3]);
-
-
-
-      if (!supplierCode || !description || quantity <= 0) {
-
+        lastInsertedIndex = result.length - 1;
+        lastItemRowY = row.y;
         continue;
-
       }
 
+      /*
+       * Continuación de descripción:
+       * ej. "2002-2012" debajo de
+       * "FIAT Palio Weekend Fase II / Strada Adventure".
+       *
+       * Solo la anexamos si:
+       * - venimos de un artículo válido;
+       * - no aparece un nuevo código/cantidad;
+       * - hay texto en la columna descripción;
+       * - no estamos entrando en totales/resumen.
+       */
+      if (
+        lastInsertedIndex !== null &&
+        lastItemRowY !== null &&
+        Math.abs(lastItemRowY - row.y) <= 14 &&
+        !itemCell &&
+        !codeCell &&
+        !quantityCell &&
+        description &&
+        !/^(INDICADOR|TOTAL|DESCUENTO|IVA|PERC|SON:|CAE|VTO|PÁGINA|PAGINA)/i.test(
+          description
+        )
+      ) {
+        result[lastInsertedIndex].description = cleanDescription(
+          `${result[lastInsertedIndex].description} ${description}`
+        );
 
-
-      result.push({
-
-        supplierCode,
-
-        description,
-
-        quantity,
-
-      });
-
+        // Permitimos otra continuación inmediata, pero no arrastramos
+        // descripciones hacia el bloque de totales/resumen.
+        lastItemRowY = row.y;
+      }
     }
-
   }
 
-
-
   return consolidate(result);
-
 }
 
 
